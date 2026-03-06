@@ -14,6 +14,7 @@ rules:
     compliance:
       cis_azure: "1.23"
       nist: "AC-6"
+      pci_dss: "7.2.2"
 
   - id: RBAC_BROAD_SCOPE
     name: "RBAC role assigned at subscription scope"
@@ -26,6 +27,7 @@ rules:
     compliance:
       cis_azure: "1.22"
       nist: "AC-6"
+      pci_dss: "7.2.5"
 
   - id: IDENTITY_UNUSED
     name: "Managed identity with no recent activity"
@@ -38,3 +40,4 @@ rules:
     compliance:
       cis_azure: "1.24"
       nist: "AC-2"
+      pci_dss: "8.6.1"

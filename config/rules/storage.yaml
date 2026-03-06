@@ -10,6 +10,7 @@ rules:
     compliance:
       cis_azure: "3.7"
       nist: "AC-3"
+      pci_dss: "1.3.1"
 
   - id: STORAGE_NO_HTTPS
     name: "Storage account allows HTTP traffic"
@@ -22,6 +23,7 @@ rules:
     compliance:
       cis_azure: "3.1"
       nist: "SC-8"
+      pci_dss: "4.2.1"
 
   - id: STORAGE_NO_ENCRYPTION
     name: "Storage account missing encryption at rest"
@@ -34,6 +36,7 @@ rules:
     compliance:
       cis_azure: "3.9"
       nist: "SC-28"
+      pci_dss: "3.5.1"
 
   - id: STORAGE_WEAK_TLS
     name: "Storage account allows weak TLS"
@@ -46,6 +49,7 @@ rules:
     compliance:
       cis_azure: "3.15"
       nist: "SC-8"
+      pci_dss: "4.2.1"
 
   - id: STORAGE_NO_SOFT_DELETE
     name: "Blob soft delete not enabled"
@@ -58,3 +62,4 @@ rules:
     compliance:
       cis_azure: "3.11"
       nist: "CP-9"
+      pci_dss: "3.4.1"

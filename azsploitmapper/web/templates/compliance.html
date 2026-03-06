@@ -56,7 +56,7 @@
         color: var(--green-dim);
         transition: all 0.2s;
     }
-    .fw-tab:first-child { border-right: none; }
+    .fw-tab:not(:last-child) { border-right: none; }
     .fw-tab:hover { background: var(--bg-card-hover); color: var(--green-primary); }
     .fw-tab.active {
         background: rgba(0, 255, 65, 0.06);
@@ -157,6 +157,7 @@
 <div class="fw-tabs">
     <div class="fw-tab active" data-fw="cis_azure">CIS AZURE BENCHMARK</div>
     <div class="fw-tab" data-fw="nist">NIST SP 800-53</div>
+    <div class="fw-tab" data-fw="pci_dss">PCI DSS v4.0.1</div>
 </div>
 
 <!-- Top row: gauge + summary -->
@@ -224,7 +225,8 @@ var showFailOnly = false;
 
 var FW_DESCRIPTIONS = {
     cis_azure: 'CIS Azure Foundations Benchmark provides prescriptive guidance for establishing a secure baseline configuration for Azure. These controls cover identity and access management, security center, storage accounts, database services, logging and monitoring, networking, and virtual machines.',
-    nist: 'NIST SP 800-53 provides a catalog of security and privacy controls for federal information systems and organizations. Controls are organized into families including Access Control (AC), Audit and Accountability (AU), Configuration Management (CM), Identification and Authentication (IA), and System and Communications Protection (SC).'
+    nist: 'NIST SP 800-53 provides a catalog of security and privacy controls for federal information systems and organizations. Controls are organized into families including Access Control (AC), Audit and Accountability (AU), Configuration Management (CM), Identification and Authentication (IA), and System and Communications Protection (SC).',
+    pci_dss: 'PCI DSS v4.0.1 (Payment Card Industry Data Security Standard) is required for all entities that store, process, or transmit cardholder data. It covers 12 principal requirements organized into 6 goals: Build and Maintain a Secure Network (Req 1-2), Protect Account Data (Req 3-4), Maintain Vulnerability Management (Req 5-6), Implement Strong Access Control (Req 7-9), Monitor and Test Networks (Req 10-11), and Maintain an Information Security Policy (Req 12). This framework is essential for financial industry compliance.'
 };
 
 var GAUGE_CIRCUMFERENCE = 2 * Math.PI * 58;

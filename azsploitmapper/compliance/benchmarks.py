@@ -4,6 +4,7 @@ Full benchmark control definitions for compliance mapping.
 Contains the complete set of controls from:
 - CIS Microsoft Azure Foundations Benchmark v2.1.0
 - NIST SP 800-53 Rev. 5 (Azure-relevant subset)
+- PCI DSS v4.0.1 (Azure-relevant controls for financial industry)
 
 Controls that are NOT matched by any scan finding are reported as PASS.
 Controls matched by one or more findings are reported as FAIL.
@@ -673,14 +674,412 @@ NIST_CONTROLS: dict[str, dict] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# PCI DSS v4.0.1 – Azure-relevant controls for financial industry
+# Covers all 12 principal requirements with focus on cloud infrastructure.
+# ---------------------------------------------------------------------------
+PCI_DSS_CONTROLS: dict[str, dict] = {
+    # ── Requirement 1: Install and Maintain Network Security Controls ──────
+    "1.2.1": {
+        "title": "Network security controls (NSCs) configuration is defined, documented, and maintained",
+        "category": "Req 1: Network Security Controls",
+        "description": (
+            "NSCs (firewalls, cloud security groups, etc.) must be configured "
+            "per documented standards. All rules should follow least-privilege "
+            "and deny-all-by-default principles."
+        ),
+    },
+    "1.3.1": {
+        "title": "Inbound traffic to the CDE is restricted to only necessary traffic",
+        "category": "Req 1: Network Security Controls",
+        "description": (
+            "All inbound traffic to the cardholder data environment must be "
+            "evaluated and only traffic with an authorized business purpose "
+            "should be allowed. All other traffic must be denied."
+        ),
+    },
+    "1.3.2": {
+        "title": "Outbound traffic from the CDE is restricted to only necessary traffic",
+        "category": "Req 1: Network Security Controls",
+        "description": (
+            "Outbound traffic from the CDE should be limited to what is "
+            "necessary for business operations. All other traffic must be "
+            "explicitly denied."
+        ),
+    },
+    "1.4.1": {
+        "title": "NSCs are implemented between trusted and untrusted networks",
+        "category": "Req 1: Network Security Controls",
+        "description": (
+            "Network security controls must be placed between any trusted "
+            "network and any untrusted network, including the internet and "
+            "cloud-based public endpoints."
+        ),
+    },
+    "1.4.2": {
+        "title": "Inbound traffic from untrusted networks is restricted to system components that provide publicly accessible services",
+        "category": "Req 1: Network Security Controls",
+        "description": (
+            "Only system components providing authorized, publicly accessible "
+            "services should be directly reachable from untrusted networks. "
+            "Other components must be isolated."
+        ),
+    },
+
+    # ── Requirement 2: Apply Secure Configurations ─────────────────────────
+    "2.2.1": {
+        "title": "Configuration standards are developed, implemented, and maintained for all system components",
+        "category": "Req 2: Secure Configurations",
+        "description": (
+            "Configuration standards must address known security vulnerabilities "
+            "and be consistent with industry-accepted system hardening standards "
+            "(CIS, NIST, etc.)."
+        ),
+    },
+    "2.2.2": {
+        "title": "Vendor default accounts are managed appropriately",
+        "category": "Req 2: Secure Configurations",
+        "description": (
+            "Default accounts (including Azure service defaults) must be "
+            "removed, disabled, or changed before deploying a system in "
+            "production."
+        ),
+    },
+    "2.2.4": {
+        "title": "Only necessary services, protocols, daemons, and functions are enabled",
+        "category": "Req 2: Secure Configurations",
+        "description": (
+            "All unnecessary functionality must be removed or disabled. "
+            "Only protocols and services with a documented business "
+            "justification should be enabled."
+        ),
+    },
+    "2.2.7": {
+        "title": "All non-console administrative access is encrypted using strong cryptography",
+        "category": "Req 2: Secure Configurations",
+        "description": (
+            "Management access to cloud infrastructure (SSH, RDP, Azure Portal) "
+            "must use strong encryption protocols (TLS 1.2+) to prevent "
+            "credential interception."
+        ),
+    },
+
+    # ── Requirement 3: Protect Stored Account Data ─────────────────────────
+    "3.4.1": {
+        "title": "PAN is secured with strong cryptography wherever it is stored",
+        "category": "Req 3: Protect Stored Data",
+        "description": (
+            "All stored cardholder data must be protected using strong "
+            "cryptographic methods. Key Vaults must be recoverable "
+            "(soft delete and purge protection enabled)."
+        ),
+    },
+    "3.5.1": {
+        "title": "PAN is rendered unreadable anywhere it is stored using strong cryptography",
+        "category": "Req 3: Protect Stored Data",
+        "description": (
+            "Disk encryption (at rest) must be enabled on all storage "
+            "media including VM disks and storage accounts. "
+            "Customer-managed keys provide additional control."
+        ),
+    },
+    "3.5.1.2": {
+        "title": "Disk-level or partition-level cryptography is used to render PAN unreadable",
+        "category": "Req 3: Protect Stored Data",
+        "description": (
+            "If disk-level encryption is the only method used to protect "
+            "stored PAN, it must use a mechanism separate from the "
+            "native operating system encryption."
+        ),
+    },
+    "3.6.1": {
+        "title": "Procedures are defined and implemented to protect cryptographic keys used for data protection",
+        "category": "Req 3: Protect Stored Data",
+        "description": (
+            "Cryptographic key management procedures must include "
+            "key generation, distribution, storage, rotation, and "
+            "destruction. Key Vaults are the recommended method in Azure."
+        ),
+    },
+    "3.6.1.1": {
+        "title": "Additional requirement for service providers: A documented description of the cryptographic architecture is maintained",
+        "category": "Req 3: Protect Stored Data",
+        "description": (
+            "Service providers must document their cryptographic "
+            "architecture including algorithms, key lengths, key custodians, "
+            "and key management lifecycle."
+        ),
+    },
+
+    # ── Requirement 4: Protect Data with Strong Cryptography in Transit ────
+    "4.2.1": {
+        "title": "Strong cryptography and security protocols are implemented to safeguard PAN during transmission over open, public networks",
+        "category": "Req 4: Encrypt Transmissions",
+        "description": (
+            "Only trusted keys/certificates and secure protocol versions "
+            "must be used. TLS 1.2 or higher is required. SSL and early "
+            "TLS (1.0, 1.1) must not be used as a security control."
+        ),
+    },
+    "4.2.1.1": {
+        "title": "An inventory of trusted keys and certificates used to protect PAN during transmission is maintained",
+        "category": "Req 4: Encrypt Transmissions",
+        "description": (
+            "An inventory of all trusted keys and certificates is "
+            "maintained and updated, including their purpose, owner, "
+            "and expiration dates."
+        ),
+    },
+    "4.2.2": {
+        "title": "PAN is secured with strong cryptography whenever it is sent via end-user messaging technologies",
+        "category": "Req 4: Encrypt Transmissions",
+        "description": (
+            "If cardholder data is transmitted via messaging (email, "
+            "instant messaging, SMS), it must be encrypted using strong "
+            "cryptography before transmission."
+        ),
+    },
+
+    # ── Requirement 5: Protect All Systems from Malicious Software ─────────
+    "5.2.1": {
+        "title": "An anti-malware solution is deployed on all system components that are commonly affected by malicious software",
+        "category": "Req 5: Malware Protection",
+        "description": (
+            "All system components (including VMs and containers) must "
+            "have anti-malware solutions deployed and active. Microsoft "
+            "Defender for Cloud provides this for Azure workloads."
+        ),
+    },
+    "5.2.2": {
+        "title": "The deployed anti-malware solution detects all known types of malware",
+        "category": "Req 5: Malware Protection",
+        "description": (
+            "Anti-malware solutions must detect viruses, trojans, "
+            "ransomware, spyware, adware, rootkits, and other "
+            "malicious software categories."
+        ),
+    },
+    "5.3.1": {
+        "title": "The anti-malware solution is kept current via automatic updates",
+        "category": "Req 5: Malware Protection",
+        "description": (
+            "Anti-malware definitions and engines must be kept up to "
+            "date through automatic updates to detect the latest threats."
+        ),
+    },
+
+    # ── Requirement 6: Develop and Maintain Secure Systems ─────────────────
+    "6.3.1": {
+        "title": "Security vulnerabilities are identified and managed through a defined process",
+        "category": "Req 6: Secure Systems & Software",
+        "description": (
+            "A process must exist to identify and rank security "
+            "vulnerabilities using industry sources (NVD, vendor "
+            "advisories) and assign risk rankings."
+        ),
+    },
+    "6.3.3": {
+        "title": "All system components are protected from known vulnerabilities by installing applicable security patches/updates",
+        "category": "Req 6: Secure Systems & Software",
+        "description": (
+            "Critical and high security patches must be installed "
+            "within one month of release. Azure Update Manager can "
+            "automate this for VM workloads."
+        ),
+    },
+    "6.4.1": {
+        "title": "For public-facing web applications, new threats and vulnerabilities are addressed on an ongoing basis",
+        "category": "Req 6: Secure Systems & Software",
+        "description": (
+            "Public-facing web applications must be reviewed using "
+            "manual or automated vulnerability assessment tools "
+            "at least annually and after significant changes."
+        ),
+    },
+
+    # ── Requirement 7: Restrict Access to System Components ────────────────
+    "7.2.1": {
+        "title": "An access control model is defined and includes granting access based on business needs",
+        "category": "Req 7: Restrict Access",
+        "description": (
+            "Access to system components and cardholder data must "
+            "be limited to individuals whose jobs require such access. "
+            "Azure RBAC must implement least privilege."
+        ),
+    },
+    "7.2.2": {
+        "title": "Access is assigned to users based on job classification and function",
+        "category": "Req 7: Restrict Access",
+        "description": (
+            "Role assignments must match job responsibilities. "
+            "Overly broad roles like Contributor or Owner should "
+            "be replaced with specific, scoped roles."
+        ),
+    },
+    "7.2.5": {
+        "title": "All application and system accounts and related access privileges are assigned and managed appropriately",
+        "category": "Req 7: Restrict Access",
+        "description": (
+            "Application accounts (managed identities, service principals) "
+            "must follow least privilege. Broad-scope subscription-level "
+            "assignments must be avoided."
+        ),
+    },
+    "7.2.6": {
+        "title": "All user access to query repositories of stored cardholder data is restricted per the access control model",
+        "category": "Req 7: Restrict Access",
+        "description": (
+            "Access to databases and storage containing cardholder data "
+            "must be restricted. Key Vault access policies must follow "
+            "the principle of least privilege."
+        ),
+    },
+
+    # ── Requirement 8: Identify Users and Authenticate Access ──────────────
+    "8.2.1": {
+        "title": "All users are assigned a unique ID before access to system components or cardholder data is allowed",
+        "category": "Req 8: User Identification & Auth",
+        "description": (
+            "Unique user identification ensures accountability. "
+            "Shared or generic accounts must not be used for "
+            "administrative access."
+        ),
+    },
+    "8.3.1": {
+        "title": "All user access to system components is authenticated via at least one authentication factor",
+        "category": "Req 8: User Identification & Auth",
+        "description": (
+            "Authentication must use at least one factor: something "
+            "you know (password), have (token/key), or are (biometric). "
+            "SSH key authentication is preferred over passwords."
+        ),
+    },
+    "8.3.2": {
+        "title": "Strong cryptography is used to render all authentication factors unreadable during transmission and storage",
+        "category": "Req 8: User Identification & Auth",
+        "description": (
+            "Authentication credentials must be encrypted both in "
+            "transit and at rest. Password-based SSH discloses "
+            "credentials over the network without key exchange."
+        ),
+    },
+    "8.6.1": {
+        "title": "If accounts used by systems or applications can be used for interactive login, they are managed as follows: interactive use is prevented unless needed",
+        "category": "Req 8: User Identification & Auth",
+        "description": (
+            "Service accounts and managed identities with no recent "
+            "activity should be reviewed and removed to reduce the "
+            "attack surface."
+        ),
+    },
+
+    # ── Requirement 9: Restrict Physical Access ────────────────────────────
+    "9.4.1": {
+        "title": "All media with cardholder data is physically secured",
+        "category": "Req 9: Physical Access",
+        "description": (
+            "In cloud environments, this maps to ensuring storage "
+            "accounts and disks are encrypted at rest and access "
+            "is restricted to authorized principals only."
+        ),
+    },
+
+    # ── Requirement 10: Log and Monitor All Access ─────────────────────────
+    "10.2.1": {
+        "title": "Audit logs are enabled and active for all system components and cardholder data",
+        "category": "Req 10: Logging & Monitoring",
+        "description": (
+            "Audit logging must be enabled for all system components. "
+            "In Azure, Diagnostic Settings and Activity Logs must be "
+            "configured to capture security-relevant events."
+        ),
+    },
+    "10.2.2": {
+        "title": "Audit logs record all defined events for each auditable event type",
+        "category": "Req 10: Logging & Monitoring",
+        "description": (
+            "Logs must capture user identification, event type, date/time, "
+            "success/failure, origination, and identity/name of affected "
+            "resource or data."
+        ),
+    },
+    "10.3.1": {
+        "title": "Read access to audit logs is limited to those with a job-related need",
+        "category": "Req 10: Logging & Monitoring",
+        "description": (
+            "Audit logs contain sensitive information and must be "
+            "protected from unauthorized access and modification."
+        ),
+    },
+
+    # ── Requirement 11: Test Security of Systems and Networks ──────────────
+    "11.3.1": {
+        "title": "Internal vulnerability scans are performed at least once every three months",
+        "category": "Req 11: Security Testing",
+        "description": (
+            "Regular vulnerability scanning must be performed on all "
+            "in-scope system components. High-risk vulnerabilities "
+            "must be resolved and rescans conducted."
+        ),
+    },
+    "11.3.2": {
+        "title": "External vulnerability scans are performed at least once every three months",
+        "category": "Req 11: Security Testing",
+        "description": (
+            "External scans must be performed by a PCI SSC Approved "
+            "Scanning Vendor (ASV). All exploitable vulnerabilities "
+            "must be resolved."
+        ),
+    },
+    "11.4.1": {
+        "title": "A penetration testing methodology is defined, documented, and implemented",
+        "category": "Req 11: Security Testing",
+        "description": (
+            "Penetration testing must cover the CDE perimeter and "
+            "critical systems. Tests must include both network-layer "
+            "and application-layer testing."
+        ),
+    },
+
+    # ── Requirement 12: Information Security Policies ──────────────────────
+    "12.1.1": {
+        "title": "An overall information security policy is established, published, maintained, and disseminated",
+        "category": "Req 12: Security Policy",
+        "description": (
+            "The security policy must address all PCI DSS requirements, "
+            "be reviewed at least annually, and updated when the "
+            "environment changes."
+        ),
+    },
+    "12.3.1": {
+        "title": "Each PCI DSS requirement that provides flexibility for how frequently it is performed is supported by a targeted risk analysis",
+        "category": "Req 12: Security Policy",
+        "description": (
+            "When PCI DSS allows periodic performance of an activity, "
+            "the entity must document the frequency based on a risk "
+            "analysis and demonstrate it is appropriate."
+        ),
+    },
+    "12.5.2": {
+        "title": "PCI DSS scope is documented and confirmed at least once every 12 months and upon significant changes",
+        "category": "Req 12: Security Policy",
+        "description": (
+            "The entity must confirm accuracy of PCI DSS scope by "
+            "identifying all locations and flows of account data and "
+            "all connected systems."
+        ),
+    },
+}
+
+
 def get_control_info(framework: str, control_id: str) -> dict | None:
     """
     Get control metadata (title, category/family, description) by framework
     and ID.
 
     Args:
-        framework: "cis_azure" or "nist"
-        control_id: The control identifier (e.g. "1.1", "AC-2")
+        framework: "cis_azure", "nist", or "pci_dss"
+        control_id: The control identifier (e.g. "1.1", "AC-2", "1.3.1")
 
     Returns:
         Dict with title, category/family, and description, or None if not
@@ -690,4 +1089,6 @@ def get_control_info(framework: str, control_id: str) -> dict | None:
         return CIS_AZURE_CONTROLS.get(control_id)
     if framework == "nist":
         return NIST_CONTROLS.get(control_id)
+    if framework == "pci_dss":
+        return PCI_DSS_CONTROLS.get(control_id)
     return None

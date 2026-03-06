@@ -10,6 +10,7 @@ rules:
     compliance:
       cis_azure: "8.4"
       nist: "CP-9"
+      pci_dss: "3.4.1"
 
   - id: KV_NO_PURGE_PROTECTION
     name: "Key Vault purge protection not enabled"
@@ -22,6 +23,7 @@ rules:
     compliance:
       cis_azure: "8.5"
       nist: "CP-9"
+      pci_dss: "3.6.1"
 
   - id: KV_BROAD_ACCESS
     name: "Key Vault has overly broad access policy"
@@ -34,3 +36,4 @@ rules:
     compliance:
       cis_azure: "8.1"
       nist: "AC-6"
+      pci_dss: "7.2.6"

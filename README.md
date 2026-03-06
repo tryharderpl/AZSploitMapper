@@ -12,12 +12,13 @@ against CIS Azure Benchmark and NIST SP 800-53 -- all through a terminal-themed 
 - **Misconfiguration Detection** -- YAML-based rule engine with 17+ built-in rules covering networking, storage, compute, identity, and key vault
 - **Secret Scanning** -- regex-based detection of exposed credentials (API keys, connection strings, JWTs, private keys)
 - **Attack Graph Visualization** -- interactive Cytoscape.js graph with color-coded nodes, path highlighting, and risk scoring
-- **Compliance Assessment** -- full CIS Azure Benchmark v2.1.0 (44 controls) and NIST SP 800-53 (28 controls) with pass/fail per control, category grouping, and compliance score gauges
+- **Compliance Assessment** -- full CIS Azure Benchmark v2.1.0 (44 controls), NIST SP 800-53 (28 controls), and PCI DSS v4.0.1 (41 controls for financial industry) with pass/fail per control, category grouping, and compliance score gauges
 - **Resource Inventory** -- grouped resource tree with drill-down details, properties viewer, and per-resource findings
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
 - [Option A: Local Development (without Docker)](#option-a-local-development-without-docker)
+- [Updating a Local Installation](#updating-a-local-installation)
 - [Option B: Docker Deployment (Recommended)](#option-b-docker-deployment-recommended)
 - [Option C: Production Deployment on Azure](#option-c-production-deployment-on-azure)
 - [Authentication Guide](#authentication-guide)
@@ -267,6 +268,88 @@ deactivate
 ```
 
 This returns your terminal to using the system Python.
+
+---
+
+## Updating a Local Installation
+
+If you have already set up AZSploitMapper locally (Option A) and want to update
+to a newer version, follow these steps. Your `.env` file, API keys, TLS certificates,
+and scan data will be preserved.
+
+### Step 1: Stop the running server
+
+If the server is currently running, stop it with `Ctrl+C` in the terminal where
+it is running. Alternatively, find and kill the process:
+
+```bash
+# Find the process using port 8443 (or 8080 if you use a custom port)
+lsof -ti:8443 | xargs kill -9
+```
+
+### Step 2: Activate the virtual environment
+
+```bash
+cd AZSploitMapper
+
+# On macOS / Linux:
+source venv/bin/activate
+
+# On Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+```
+
+### Step 3: Copy the new application files
+
+Replace the application source code with the updated version. If you received
+the update as a folder, copy the new files over the old ones:
+
+```bash
+# Copy updated application code (preserves your .env, certs/, data/ and venv/)
+cp -r /path/to/new/AZSploitMapper/azsploitmapper/ ./azsploitmapper/
+cp -r /path/to/new/AZSploitMapper/config/ ./config/
+cp /path/to/new/AZSploitMapper/requirements.txt ./requirements.txt
+```
+
+The files you should **never overwrite** (they contain your personal configuration):
+- `.env` -- your Azure credentials and API key
+- `certs/` -- your TLS certificates
+- `data/` -- your stored scan results and API key hashes
+- `venv/` -- your Python virtual environment
+
+### Step 4: Install any new dependencies
+
+New versions may add or update Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+This will install any new packages and update existing ones to the required versions.
+
+### Step 5: Start the updated server
+
+```bash
+# Load environment variables
+export $(grep -v '^#' .env | xargs)
+
+# Start the server
+python -m azsploitmapper serve
+```
+
+### Step 6: Run a new scan
+
+After updating, run a new scan to take advantage of any new rules or compliance
+frameworks that were added:
+
+```bash
+# Via the web dashboard: click EXECUTE SCAN
+# Or via CLI:
+python -m azsploitmapper scan --subscription-id YOUR_SUBSCRIPTION_ID
+```
+
+Previous scan results remain available in the dashboard. New scans will use
+the updated rule engine and compliance mappings.
 
 ---
 
@@ -747,7 +830,7 @@ AZSploitMapper/
       collectors/         # Compute, Network, Storage, Identity, KeyVault collectors
       rules/              # Rule engine + models
     graph/                # NetworkX graph builder, BFS attack path finder, risk scorer
-    compliance/           # CIS Azure Benchmark + NIST SP 800-53 control mapping
+    compliance/           # CIS Azure Benchmark + NIST SP 800-53 + PCI DSS v4.0.1 control mapping
     auth/                 # Authentication middleware
       entra.py            # API Key + Entra ID OAuth2 + session management
       api_keys.py         # API key generation, validation, revocation
@@ -781,7 +864,7 @@ AZSploitMapper/
 | Database | SQLite + SQLAlchemy |
 | Security | TLS, CSP headers, HSTS, rate limiting, audit logging |
 | Deployment | Docker (non-root, read-only FS), Terraform, Azure Container Instances |
-| Compliance | CIS Azure Benchmark v2.1.0, NIST SP 800-53 Rev. 5 |
+| Compliance | CIS Azure Benchmark v2.1.0, NIST SP 800-53 Rev. 5, PCI DSS v4.0.1 |
 
 ## Security Features
 

@@ -4,6 +4,7 @@ Compliance mapper - maps findings to security frameworks.
 Supported frameworks:
 - CIS Azure Benchmark v2.1.0: Industry-standard security configuration guidelines
 - NIST SP 800-53 Rev. 5: Federal cybersecurity framework
+- PCI DSS v4.0.1: Payment Card Industry Data Security Standard for financial industry
 
 The mapper starts with the FULL set of controls from benchmarks.py (all PASS),
 then marks controls as FAIL when a matching finding is encountered.  Controls
@@ -13,6 +14,7 @@ with no matching findings remain PASS, giving a complete compliance picture.
 from azsploitmapper.compliance.benchmarks import (
     CIS_AZURE_CONTROLS,
     NIST_CONTROLS,
+    PCI_DSS_CONTROLS,
 )
 
 
@@ -35,6 +37,11 @@ class ComplianceMapper:
             "name": "NIST SP 800-53",
             "controls": NIST_CONTROLS,
             "group_key": "family",
+        },
+        "pci_dss": {
+            "name": "PCI DSS v4.0.1",
+            "controls": PCI_DSS_CONTROLS,
+            "group_key": "category",
         },
     }
 

@@ -10,6 +10,7 @@ rules:
     compliance:
       cis_azure: "7.4"
       nist: "IA-2"
+      pci_dss: "8.3.1"
 
   - id: VM_NO_MANAGED_DISK
     name: "VM uses unmanaged disks"
@@ -22,6 +23,7 @@ rules:
     compliance:
       cis_azure: "7.1"
       nist: "SC-28"
+      pci_dss: "3.5.1"
 
   - id: VM_PUBLIC_IP_DIRECT
     name: "VM directly exposed to internet"
@@ -34,3 +36,4 @@ rules:
     compliance:
       cis_azure: "6.4"
       nist: "SC-7"
+      pci_dss: "1.4.2"
