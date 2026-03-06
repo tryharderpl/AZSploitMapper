@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+{% set active_page = "graph" %}
+
+{% block title %}Attack Graph | AZSploitMapper{% endblock %}
+
+{% block head %}
+<!-- Cytoscape.js: self-hosted to avoid CDN supply chain risk -->
+<script src="/static/js/cytoscape.min.js" nonce="{{ csp_nonce }}"></script>
+<style>
+    .graph-layout {
+        display: flex;
+        gap: 18px;
+        height: calc(100vh - 160px);
+    }
+    .graph-main {
+        flex: 7;
+        display: flex;
+        flex-direction: column;
+    }
+    .graph-sidebar {
+        flex: 3;
+        min-width: 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        overflow: hidden;
+    }
+    #cy {
+        width: 100%;
+        flex: 1;
+        background: #020502;
+    }
+    .graph-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--green-border);
+        font-size: 13px;
+    }
+    .path-item {
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(0, 255, 65, 0.06);
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .path-item:hover { background: rgba(0, 255, 65, 0.04); }
+    .path-item.active {
+        background: rgba(0, 255, 65, 0.1);
+        border-left: 3px solid var(--green-glow);
+    }
+    .paths-scroll { flex: 1; overflow-y: auto; }
+    .legend-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 16px 20px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--green-mid);
+    }
+    .legend-dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+    .node-detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(0, 255, 65, 0.04);
+        font-size: 13px;
+    }
+    .node-detail-label { color: var(--green-muted); }
+    .node-detail-value { color: var(--green-primary); text-align: right; max-width: 60%; word-break: break-all; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header glow-text">
+    <span>ATTACK GRAPH // THREAT TOPOLOGY</span>
+    <div class="section-line"></div>
+</div>
+
+<div class="graph-layout">
+    <div class="graph-main">
+        <div class="term-card" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="graph-toolbar">
+                <span style="font-size:12px; color:var(--green-muted); letter-spacing:1px;">LAYOUT:</span>
+                <select id="layout-select" class="term-input" style="padding:6px 10px; font-size:12px;">
+                    <option value="cose">FORCE-DIRECTED</option>
+                    <option value="breadthfirst">BREADTHFIRST</option>
+                    <option value="circle">CIRCLE</option>
+                    <option value="grid">GRID</option>
+                </select>
+                <button id="btn-relayout" class="term-btn" style="padding:6px 14px; font-size:12px;">RE-LAYOUT</button>
+                <button id="btn-fit" class="term-btn" style="padding:6px 14px; font-size:12px;">FIT VIEW</button>
+                <button id="btn-reset" class="term-btn" style="padding:6px 14px; font-size:12px;">RESET</button>
+                <span style="flex:1;"></span>
+                <span id="node-count" style="font-size:12px; color:var(--green-dim);">NODES: 0 | EDGES: 0</span>
+            </div>
+            <div id="cy"></div>
+        </div>
+    </div>
+
+    <div class="graph-sidebar">
+        <div class="term-card" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="term-card-header">ATTACK PATHS</div>
+            <div id="paths-list" class="paths-scroll">
+                <div style="padding:16px; font-size:12px; color:var(--green-muted);" class="pulse-green">
+                    Loading attack paths...
+                </div>
+            </div>
+        </div>
+
+        <div id="node-details" class="term-card" style="display:none;">
+            <div class="term-card-header">NODE DETAILS</div>
+            <div id="node-info" style="padding:14px 18px;"></div>
+        </div>
+
+        <div class="term-card">
+            <div class="term-card-header">LEGEND</div>
+            <div class="legend-grid">
+                <div class="legend-item"><div class="legend-dot" style="background:#ff0040;"></div> Internet</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#00e5ff;"></div> NSG</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ffcc00;"></div> Public IP</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#00ff41;"></div> VM</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#7cfc00;"></div> NIC</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#00cc33;"></div> Storage</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#8b00ff;"></div> Key Vault</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#556b2f;"></div> VNet / Disk</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+var scanId = {{ scan_id | tojson }};
+var cy = null;
+var allPaths = [];
+
+var NODE_COLORS = {
+    internet:         '#ff0040',
+    nsg:              '#00e5ff',
+    public_ip:        '#ffcc00',
+    vm:               '#00ff41',
+    nic:              '#7cfc00',
+    managed_identity: '#39ff14',
+    storage:          '#00cc33',
+    keyvault:         '#8b00ff',
+    vnet:             '#556b2f',
+    disk:             '#556b2f',
+};
+var NODE_SHAPES = {
+    internet:         'diamond',
+    vm:               'round-rectangle',
+    storage:          'barrel',
+    keyvault:         'pentagon',
+    nsg:              'triangle',
+    public_ip:        'hexagon',
+    nic:              'ellipse',
+    vnet:             'rectangle',
+    disk:             'round-rectangle',
+};
+
+function riskClass(score) {
+    if (score >= 8) return 'risk-critical';
+    if (score >= 5) return 'risk-high';
+    if (score >= 3) return 'risk-medium';
+    return 'risk-low';
+}
+
+function riskColor(score) {
+    if (score >= 8) return 'var(--red-alert)';
+    if (score >= 5) return 'var(--yellow-warn)';
+    if (score >= 3) return 'var(--cyan-info)';
+    return 'var(--green-glow)';
+}
+
+async function init() {
+    var results = await Promise.all([
+        fetch('/api/graph/' + scanId).then(function(r) { return r.json(); }),
+        fetch('/api/attack-paths/' + scanId).then(function(r) { return r.json(); })
+    ]);
+    var graphData = results[0];
+    var pathsData = results[1];
+    allPaths = pathsData.paths || [];
+
+    var elements = [];
+
+    (graphData.nodes || []).forEach(function(n) {
+        elements.push({
+            group: 'nodes',
+            data: {
+                id: n.data.id,
+                label: n.data.label,
+                type: n.data.type,
+                risk_score: n.data.risk_score || 0,
+                findings_count: n.data.findings_count || 0
+            }
+        });
+    });
+
+    (graphData.edges || []).forEach(function(e) {
+        elements.push({
+            group: 'edges',
+            data: {
+                source: e.data.source,
+                target: e.data.target,
+                label: e.data.label || ''
+            }
+        });
+    });
+
+    cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: elements,
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    'label': 'data(label)',
+                    'text-valign': 'bottom',
+                    'text-halign': 'center',
+                    'font-size': '10px',
+                    'font-family': "'JetBrains Mono', 'Fira Code', monospace",
+                    'font-weight': 500,
+                    'color': '#c0ffc0',
+                    'text-margin-y': 5,
+                    'width': 30,
+                    'height': 30,
+                    'background-color': function(ele) {
+                        return NODE_COLORS[ele.data('type')] || '#556b2f';
+                    },
+                    'shape': function(ele) {
+                        return NODE_SHAPES[ele.data('type')] || 'ellipse';
+                    },
+                    'border-width': 2,
+                    'border-color': '#001a00',
+                    'text-outline-color': '#000000',
+                    'text-outline-width': 2,
+                    'text-max-width': '120px',
+                    'text-wrap': 'ellipsis'
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 2,
+                    'line-color': '#1a5c1a',
+                    'target-arrow-color': '#1a5c1a',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'label': 'data(label)',
+                    'font-size': '9px',
+                    'font-family': "'JetBrains Mono', monospace",
+                    'color': '#00cc33',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -7,
+                    'text-outline-color': '#000000',
+                    'text-outline-width': 2
+                }
+            },
+            {
+                selector: '.highlighted-node',
+                style: {
+                    'border-width': 3,
+                    'border-color': '#00ff41',
+                    'width': 40,
+                    'height': 40,
+                    'font-size': '12px',
+                    'z-index': 10
+                }
+            },
+            {
+                selector: '.highlighted-edge',
+                style: {
+                    'width': 2.5,
+                    'line-color': '#00ff41',
+                    'target-arrow-color': '#00ff41',
+                    'font-size': '10px',
+                    'color': '#00ff41',
+                    'z-index': 10
+                }
+            },
+            {
+                selector: '.dimmed',
+                style: { 'opacity': 0.1 }
+            }
+        ],
+        layout: { name: 'cose', animate: true, animationDuration: 600, nodeOverlap: 20, idealEdgeLength: 100, nodeRepulsion: function(){return 4500;}, padding: 30 },
+        minZoom: 0.15,
+        maxZoom: 4
+    });
+
+    document.getElementById('node-count').textContent =
+        'NODES: ' + cy.nodes().length + ' | EDGES: ' + cy.edges().length;
+
+    cy.on('tap', 'node', function(evt) { showNodeDetails(evt.target); });
+    cy.on('tap', function(evt) { if (evt.target === cy) hideNodeDetails(); });
+
+    renderPathsList();
+}
+
+function renderPathsList() {
+    var container = document.getElementById('paths-list');
+    container.replaceChildren();
+
+    if (allPaths.length === 0) {
+        var p = document.createElement('div');
+        p.style.cssText = 'padding:16px; font-size:12px; color:var(--green-muted);';
+        p.textContent = '> No attack paths found.';
+        container.appendChild(p);
+        return;
+    }
+
+    allPaths.forEach(function(path, i) {
+        var div = document.createElement('div');
+        div.className = 'path-item';
+        div.dataset.index = i;
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;';
+
+        var title = document.createElement('span');
+        title.style.cssText = 'font-size:13px; color:var(--green-primary); font-weight:700;';
+        title.textContent = 'PATH #' + (i + 1);
+
+        var score = document.createElement('span');
+        score.style.cssText = 'font-size:20px; font-weight:700;';
+        score.style.color = riskColor(path.risk_score);
+        score.textContent = path.risk_score.toFixed(1);
+
+        header.append(title, score);
+
+        var bar = document.createElement('div');
+        bar.className = 'risk-bar';
+        bar.style.marginBottom = '10px';
+        bar.style.height = '6px';
+        var fill = document.createElement('div');
+        fill.className = 'risk-bar-fill ' + riskClass(path.risk_score);
+        fill.style.width = Math.min(path.risk_score * 10, 100) + '%';
+        fill.style.height = '100%';
+        bar.appendChild(fill);
+
+        var desc = document.createElement('div');
+        desc.style.cssText = 'font-size:12px; color:var(--green-dim); margin-bottom:6px; line-height:1.6;';
+        desc.textContent = path.description || '';
+
+        var hops = document.createElement('div');
+        hops.style.cssText = 'font-size:11px; color:var(--green-muted); letter-spacing:1px;';
+        hops.textContent = 'HOPS: ' + (path.nodes.length - 1);
+
+        var riskInfo = document.createElement('div');
+        riskInfo.style.cssText = 'font-size:9px; color:var(--green-dark); margin-top:6px; line-height:1.5;';
+        riskInfo.textContent = 'risk = 30% path_length + 50% severity + 20% target_value';
+
+        div.append(header, bar, desc, hops, riskInfo);
+        div.addEventListener('click', function() { highlightPath(i); });
+        container.appendChild(div);
+    });
+}
+
+function highlightPath(index) {
+    cy.elements().removeClass('highlighted-node highlighted-edge dimmed');
+
+    document.querySelectorAll('.path-item').forEach(function(el) { el.classList.remove('active'); });
+    var pathEl = document.querySelector('[data-index="' + index + '"]');
+    if (pathEl) pathEl.classList.add('active');
+
+    var path = allPaths[index];
+    if (!path) return;
+
+    cy.elements().addClass('dimmed');
+
+    path.nodes.forEach(function(nodeId) {
+        var node = cy.getElementById(nodeId);
+        if (node.length) node.removeClass('dimmed').addClass('highlighted-node');
+    });
+
+    for (var i = 0; i < path.nodes.length - 1; i++) {
+        var edges = cy.edges('[source="' + path.nodes[i] + '"][target="' + path.nodes[i + 1] + '"]');
+        edges.removeClass('dimmed').addClass('highlighted-edge');
+    }
+
+    var pathNodes = cy.collection();
+    path.nodes.forEach(function(id) {
+        var n = cy.getElementById(id);
+        if (n.length) pathNodes = pathNodes.union(n);
+    });
+    cy.animate({ fit: { eles: pathNodes, padding: 80 } }, { duration: 400 });
+}
+
+function showNodeDetails(node) {
+    var panel = document.getElementById('node-details');
+    var info = document.getElementById('node-info');
+    panel.style.display = '';
+    info.replaceChildren();
+
+    var riskVal = (node.data('risk_score') || 0).toFixed(1);
+    var findingsN = node.data('findings_count') || 0;
+    var nodeType = (node.data('type') || 'unknown').toUpperCase();
+
+    var fields = [
+        ['NAME', node.data('label')],
+        ['TYPE', nodeType],
+        ['RISK', riskVal],
+        ['FINDINGS', findingsN],
+    ];
+
+    fields.forEach(function(pair) {
+        var row = document.createElement('div');
+        row.className = 'node-detail-row';
+        var lbl = document.createElement('span');
+        lbl.className = 'node-detail-label';
+        lbl.textContent = pair[0];
+        var val = document.createElement('span');
+        val.className = 'node-detail-value';
+        val.textContent = pair[1];
+
+        if (pair[0] === 'RISK') {
+            var s = parseFloat(pair[1]);
+            val.style.color = riskColor(s);
+            val.style.fontWeight = 'bold';
+        }
+
+        row.append(lbl, val);
+        info.appendChild(row);
+    });
+
+    var explain = document.createElement('div');
+    explain.style.cssText = 'margin-top:12px; padding:10px; background:rgba(0,20,0,0.5); border:1px solid var(--green-dark); border-radius:4px; font-size:10px; line-height:1.6; color:var(--green-dim);';
+    var targetTypes = {'VM': 7.0, 'STORAGE': 8.0, 'KEYVAULT': 10.0, 'KEY_VAULT': 10.0};
+    var tVal = targetTypes[nodeType] || 0;
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'font-size:10px; color:var(--green-muted); letter-spacing:1px; margin-bottom:6px;';
+    hdr.textContent = '// RISK BREAKDOWN';
+    explain.appendChild(hdr);
+    var lines = [
+        'Findings on node: ' + findingsN + ' (severity-weighted)',
+        'Target value: ' + (tVal > 0 ? tVal.toFixed(1) + '/10' : 'n/a (transit node)'),
+        'Attack path exposure: ' + (riskVal > 0 ? 'yes' : 'no'),
+        'Formula: 50% findings + 30% target + 20% path'
+    ];
+    lines.forEach(function(l) {
+        var p = document.createElement('div');
+        p.textContent = '> ' + l;
+        explain.appendChild(p);
+    });
+    info.appendChild(explain);
+}
+
+function hideNodeDetails() {
+    document.getElementById('node-details').style.display = 'none';
+    cy.elements().removeClass('highlighted-node highlighted-edge dimmed');
+    document.querySelectorAll('.path-item').forEach(function(el) { el.classList.remove('active'); });
+}
+
+document.getElementById('btn-fit').addEventListener('click', function() {
+    cy.fit(undefined, 50);
+});
+
+document.getElementById('btn-reset').addEventListener('click', function() {
+    hideNodeDetails();
+    cy.fit(undefined, 50);
+});
+
+document.getElementById('btn-relayout').addEventListener('click', function() {
+    var name = document.getElementById('layout-select').value;
+    var opts;
+    if (name === 'breadthfirst') opts = { name: name, directed: true, spacingFactor: 1.6, padding: 30 };
+    else if (name === 'cose') opts = { name: name, animate: true, animationDuration: 600, nodeOverlap: 20, idealEdgeLength: 100, nodeRepulsion: function(){return 4500;}, padding: 30 };
+    else opts = { name: name, animate: true, padding: 30 };
+    cy.layout(opts).run();
+});
+
+init();
+</script>
+{% endblock %}

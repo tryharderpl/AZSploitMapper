@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Error | AZSploitMapper{% endblock %}
+
+{% block content %}
+<div style="max-width:600px; margin:60px auto; text-align:center;">
+
+    <pre style="color:var(--red-alert); font-size:10px; line-height:1.2; margin-bottom:24px; text-shadow:0 0 8px rgba(255,0,64,0.4);">
+ _____ ____  ____   ___  ____
+| ____| _ \| _ \ / _ \| _ \
+|  _| | |_) | |_) | | | | |_) |
+| |___|  _ &lt;|  _ &lt;| |_| |  _ &lt;
+|_____|_| \_\_| \_\\___/|_| \_\
+    </pre>
+
+    <div class="term-card" style="padding:32px; text-align:center;">
+        <div style="font-size:48px; color:var(--red-alert); text-shadow:0 0 15px rgba(255,0,64,0.5); margin-bottom:16px;">
+            {{ error_code | default("ERROR") }}
+        </div>
+
+        <div class="scan-line" style="margin-bottom:16px;"></div>
+
+        <div style="font-size:13px; color:var(--green-primary); margin-bottom:8px;">
+            > SYSTEM FAULT DETECTED
+        </div>
+
+        <div style="font-size:12px; color:var(--green-dim); margin-bottom:24px; line-height:1.6;">
+            {{ message | default("The requested resource was not found or an unexpected error occurred.") }}
+        </div>
+
+        <div style="font-size:10px; color:var(--green-muted); margin-bottom:24px; letter-spacing:1px;">
+            TIMESTAMP: <span id="err-time"></span>
+        </div>
+
+        <a href="/dashboard" class="term-btn term-btn-primary" style="text-decoration:none; display:inline-block;">
+            RETURN TO DASHBOARD
+        </a>
+    </div>
+
+    <div style="margin-top:24px; font-size:10px; color:var(--green-muted);">
+        <span style="color:var(--green-dim);">$</span> If this error persists, check scanner logs or restart the application.
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var el = document.getElementById('err-time');
+    if (el) el.textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+rules:
+  - id: STORAGE_PUBLIC_ACCESS
+    name: "Storage account allows public blob access"
+    description: "Storage account has public blob access enabled, anyone with the URL can read data"
+    resource_type: "Microsoft.Storage/storageAccounts"
+    severity: CRITICAL
+    check: "storage_public_access"
+    parameters: {}
+    remediation: "Disable public blob access in storage account settings"
+    compliance:
+      cis_azure: "3.7"
+      nist: "AC-3"
+
+  - id: STORAGE_NO_HTTPS
+    name: "Storage account allows HTTP traffic"
+    description: "Storage account does not enforce HTTPS-only, data in transit can be intercepted"
+    resource_type: "Microsoft.Storage/storageAccounts"
+    severity: HIGH
+    check: "storage_no_https"
+    parameters: {}
+    remediation: "Enable 'Secure transfer required' in storage account settings"
+    compliance:
+      cis_azure: "3.1"
+      nist: "SC-8"
+
+  - id: STORAGE_NO_ENCRYPTION
+    name: "Storage account missing encryption at rest"
+    description: "Storage account does not use customer-managed keys for encryption"
+    resource_type: "Microsoft.Storage/storageAccounts"
+    severity: MEDIUM
+    check: "storage_no_cmk"
+    parameters: {}
+    remediation: "Configure customer-managed keys (CMK) for storage account encryption"
+    compliance:
+      cis_azure: "3.9"
+      nist: "SC-28"
+
+  - id: STORAGE_WEAK_TLS
+    name: "Storage account allows weak TLS"
+    description: "Storage account accepts TLS 1.0 or 1.1 connections which are vulnerable to downgrade attacks"
+    resource_type: "Microsoft.Storage/storageAccounts"
+    severity: HIGH
+    check: "storage_weak_tls"
+    parameters: {}
+    remediation: "Set minimum TLS version to TLS 1.2 in storage account configuration"
+    compliance:
+      cis_azure: "3.15"
+      nist: "SC-8"
+
+  - id: STORAGE_NO_SOFT_DELETE
+    name: "Blob soft delete not enabled"
+    description: "Storage account does not have blob soft delete, deleted data cannot be recovered"
+    resource_type: "Microsoft.Storage/storageAccounts"
+    severity: MEDIUM
+    check: "storage_no_soft_delete"
+    parameters: {}
+    remediation: "Enable blob soft delete with a minimum retention of 7 days"
+    compliance:
+      cis_azure: "3.11"
+      nist: "CP-9"

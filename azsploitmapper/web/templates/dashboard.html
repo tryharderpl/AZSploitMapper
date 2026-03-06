@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+
+{% block title %}Dashboard | AZSploitMapper{% endblock %}
+
+{% block content %}
+
+<!-- ============ SYSTEM STATUS ============ -->
+<div class="section-header glow-text">
+    <span>SYSTEM STATUS</span>
+    <div class="section-line"></div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
+
+    <!-- Azure Connection -->
+    <div class="term-card glow-border">
+        <div class="term-card-header">AZURE CONNECTION</div>
+        <div style="padding:22px;" id="azure-status-panel">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                <span id="az-dot" class="status-dot status-dot-warn"></span>
+                <span id="az-conn-label" style="font-size:17px; font-weight:600; color:var(--yellow-warn);">DETECTING...</span>
+            </div>
+            <div style="display:grid; grid-template-columns:auto 1fr; gap:8px 18px; font-size:15px;">
+                <span style="color:var(--green-muted);">auth:</span>
+                <span id="az-sub-name" style="color:var(--green-mid);">---</span>
+                <span style="color:var(--green-muted);">subscription:</span>
+                <span id="az-sub-id" style="color:var(--green-mid);">---</span>
+                <span style="color:var(--green-muted);">tenant_id:</span>
+                <span id="az-tenant" style="color:var(--green-mid);">---</span>
+                <span style="color:var(--green-muted);">client_id:</span>
+                <span id="az-user" style="color:var(--green-mid);">---</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan Control -->
+    <div class="term-card glow-border">
+        <div class="term-card-header">SCAN CONTROL</div>
+        <div style="padding:22px;">
+            <p style="font-size:15px; color:var(--green-mid); margin:0 0 14px 0; line-height:1.7;">
+                Scan your Azure subscription for misconfigurations, exposed secrets, and attack paths.
+                Authentication uses <span style="color:var(--green-glow);">Service Principal</span> credentials configured in the environment.
+            </p>
+            <form id="scan-form">
+                <!-- Subscription ID from server config (read-only) -->
+                <input type="hidden" id="subscription-id" value="{{ configured_subscription_id }}">
+                {% if configured_subscription_id %}
+                <div style="margin-bottom:14px; font-size:14px;">
+                    <span style="color:var(--green-muted);">target:</span>
+                    <span style="color:var(--green-glow);">{{ configured_subscription_id }}</span>
+                </div>
+                {% else %}
+                <div style="margin-bottom:14px; font-size:14px; color:var(--red-alert);">
+                    No AZURE_SUBSCRIPTION_ID configured. Set it in your .env file.
+                </div>
+                {% endif %}
+                <div style="margin-bottom:14px;">
+                    <label class="term-label" for="resource-group">resource_group (optional -- leave empty to scan all)</label>
+                    <input type="text" id="resource-group" class="term-input"
+                           placeholder="leave empty to scan all"
+                           style="width:100%; margin-top:6px;">
+                </div>
+                <button type="submit" id="scan-btn" class="term-btn term-btn-primary"
+                        style="width:100%; padding:16px; font-size:18px; font-weight:600;" disabled>
+                    > CONNECTING...
+                </button>
+            </form>
+            <div id="scan-status" style="display:none; margin-top:14px;">
+                <div style="overflow:hidden; margin-bottom:10px;">
+                    <div class="scan-line"></div>
+                </div>
+                <span id="scan-status-text" class="blink-cursor"
+                      style="font-size:15px; color:var(--green-glow);">
+                    > initializing scan
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ SCAN RESULTS (hidden until scan completes) ============ -->
+<div id="stats-section" style="display:none;">
+
+    <div class="section-header glow-text">
+        <span>SCAN RESULTS</span>
+        <div class="section-line"></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:24px;">
+        <div class="term-card stat-card glow-border">
+            <div id="stat-resources" class="stat-value glow-text-strong"
+                 style="color:var(--green-glow);">0</div>
+            <div class="stat-label">RESOURCES</div>
+        </div>
+        <div class="term-card stat-card glow-border">
+            <div id="stat-paths" class="stat-value"
+                 style="color:var(--red-alert); text-shadow:0 0 8px var(--red-alert);">0</div>
+            <div class="stat-label">ATTACK PATHS</div>
+        </div>
+        <div class="term-card stat-card glow-border">
+            <div id="stat-findings" class="stat-value"
+                 style="color:var(--yellow-warn); text-shadow:0 0 8px var(--yellow-warn);">0</div>
+            <div class="stat-label">FINDINGS</div>
+        </div>
+        <div class="term-card stat-card glow-border">
+            <div id="stat-critical" class="stat-value"
+                 style="color:var(--red-alert); text-shadow:0 0 12px var(--red-alert), 0 0 24px rgba(255,0,64,0.3);">0</div>
+            <div class="stat-label">CRITICAL</div>
+        </div>
+    </div>
+
+    <!-- Compliance Gauge + Top Attack Paths -->
+    <div style="display:grid; grid-template-columns:240px 1fr; gap:20px; margin-bottom:24px;">
+
+        <div class="term-card" style="text-align:center;">
+            <div class="term-card-header">COMPLIANCE</div>
+            <div style="padding:24px 16px 20px;">
+                <div style="position:relative; width:160px; height:160px; margin:0 auto;">
+                    <svg width="160" height="160" viewBox="0 0 160 160">
+                        <circle class="gauge-ring gauge-track" cx="80" cy="80" r="64"
+                                fill="none" stroke-width="8"/>
+                        <circle id="gauge-fill" class="gauge-ring gauge-fill" cx="80" cy="80" r="64"
+                                fill="none" stroke-width="8"
+                                stroke-dasharray="402.12" stroke-dashoffset="402.12"
+                                stroke-linecap="square"/>
+                    </svg>
+                    <div id="gauge-pct" class="glow-text-strong"
+                         style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+                                font-size:2.2rem; color:var(--green-glow);">
+                        --%
+                    </div>
+                </div>
+                <div style="margin-top:12px; font-size:12px; color:var(--green-muted);
+                            letter-spacing:2px; text-transform:uppercase;">
+                    PASS RATE
+                </div>
+            </div>
+        </div>
+
+        <div class="term-card">
+            <div class="term-card-header">TOP ATTACK PATHS</div>
+            <table class="term-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th style="width:90px;">RISK</th>
+                        <th>DESCRIPTION</th>
+                        <th style="width:60px;">HOPS</th>
+                    </tr>
+                </thead>
+                <tbody id="paths-table">
+                    <tr>
+                        <td colspan="4" style="color:var(--green-muted); font-size:14px;">
+                            > awaiting scan data...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quick Navigation Cards -->
+    <div class="section-header glow-text">
+        <span>EXPLORE</span>
+        <div class="section-line"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:24px;">
+        <a id="link-graph" href="/graph" class="term-card glow-border"
+           style="padding:26px; text-decoration:none; display:block; cursor:pointer;">
+            <div style="font-size:17px; color:var(--green-glow); margin-bottom:10px; font-weight:600;">
+                > attack_graph
+            </div>
+            <div style="font-size:14px; color:var(--green-muted); line-height:1.6;">
+                Interactive visualization of attack paths between resources
+            </div>
+        </a>
+        <a id="link-findings" href="/findings" class="term-card glow-border"
+           style="padding:26px; text-decoration:none; display:block; cursor:pointer;">
+            <div style="font-size:17px; color:var(--yellow-warn); margin-bottom:10px; font-weight:600;">
+                > findings
+            </div>
+            <div style="font-size:14px; color:var(--green-muted); line-height:1.6;">
+                Misconfigurations with severity and remediation steps
+            </div>
+        </a>
+        <a id="link-compliance" href="/compliance" class="term-card glow-border"
+           style="padding:26px; text-decoration:none; display:block; cursor:pointer;">
+            <div style="font-size:17px; color:var(--cyan-info); margin-bottom:10px; font-weight:600;">
+                > compliance
+            </div>
+            <div style="font-size:14px; color:var(--green-muted); line-height:1.6;">
+                CIS Azure Benchmark and NIST SP 800-53 control mapping
+            </div>
+        </a>
+        <a id="link-inventory" href="/inventory" class="term-card glow-border"
+           style="padding:26px; text-decoration:none; display:block; cursor:pointer;">
+            <div style="font-size:17px; color:var(--green-primary); margin-bottom:10px; font-weight:600;">
+                > inventory
+            </div>
+            <div style="font-size:14px; color:var(--green-muted); line-height:1.6;">
+                Full resource database with drill-down details
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- ============ SCAN HISTORY ============ -->
+<div style="margin-top:8px;">
+    <div class="section-header glow-text">
+        <span>SCAN HISTORY</span>
+        <div class="section-line"></div>
+    </div>
+    <div class="term-card">
+        <div class="term-card-header">PREVIOUS SCANS</div>
+        <div id="scans-list" style="padding:16px;">
+            <span style="font-size:14px; color:var(--green-muted);">
+                > no scans found. execute a scan to begin.
+            </span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var scanForm = document.getElementById('scan-form');
+    var scanBtn = document.getElementById('scan-btn');
+    var scanStatus = document.getElementById('scan-status');
+    var scanStatusText = document.getElementById('scan-status-text');
+    var statsSection = document.getElementById('stats-section');
+    var subIdInput = document.getElementById('subscription-id');
+
+    /* ---- Azure subscription (configured via environment, not az login) ---- */
+    (function() {
+        var dot = document.getElementById('az-dot');
+        var label = document.getElementById('az-conn-label');
+
+        /* The subscription is configured server-side via Service Principal.
+           The dashboard just needs to know the scan endpoint is available. */
+        fetch('/api/health')
+            .then(function(res) { return res.json(); })
+            .then(function(info) {
+                if (info.status === 'ok') {
+                    dot.className = 'status-dot status-dot-ok';
+                    label.textContent = 'SERVICE READY';
+                    label.style.color = 'var(--green-glow)';
+
+                    document.getElementById('az-sub-name').textContent = 'Service Principal';
+                    document.getElementById('az-sub-id').textContent = '{{ configured_subscription_id or "not configured" }}';
+                    document.getElementById('az-tenant').textContent = '{{ configured_tenant_id or "not configured" }}';
+                    document.getElementById('az-user').textContent = '{{ configured_client_id or "not configured" }}';
+
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = '> EXECUTE SCAN';
+                }
+            })
+            .catch(function() {
+                dot.className = 'status-dot status-dot-err';
+                label.textContent = 'SERVICE ERROR';
+                label.style.color = 'var(--red-alert)';
+                scanBtn.textContent = '> SERVICE UNAVAILABLE';
+            });
+    })();
+
+    /* ---- Risk helpers ---- */
+    function riskColor(score) {
+        if (score >= 8) return 'var(--red-alert)';
+        if (score >= 5) return 'var(--yellow-warn)';
+        if (score >= 3) return 'var(--cyan-info)';
+        return 'var(--green-glow)';
+    }
+    function riskBarClass(score) {
+        if (score >= 8) return 'risk-critical';
+        if (score >= 5) return 'risk-high';
+        if (score >= 3) return 'risk-medium';
+        return 'risk-low';
+    }
+
+    function createPathRow(path, index) {
+        var tr = document.createElement('tr');
+
+        var tdNum = document.createElement('td');
+        tdNum.style.color = 'var(--green-muted)';
+        tdNum.textContent = String(index + 1).padStart(2, '0');
+
+        var tdRisk = document.createElement('td');
+        var scoreSpan = document.createElement('span');
+        scoreSpan.style.color = riskColor(path.risk_score);
+        scoreSpan.style.fontWeight = 'bold';
+        scoreSpan.style.fontSize = '16px';
+        scoreSpan.textContent = path.risk_score.toFixed(1);
+        tdRisk.appendChild(scoreSpan);
+        var riskBarOuter = document.createElement('div');
+        riskBarOuter.className = 'risk-bar';
+        riskBarOuter.style.marginTop = '4px';
+        var riskBarInner = document.createElement('div');
+        riskBarInner.className = 'risk-bar-fill ' + riskBarClass(path.risk_score);
+        riskBarInner.style.width = (path.risk_score * 10) + '%';
+        riskBarOuter.appendChild(riskBarInner);
+        tdRisk.appendChild(riskBarOuter);
+
+        var tdDesc = document.createElement('td');
+        tdDesc.style.fontSize = '14px';
+        tdDesc.textContent = path.description || 'Unnamed path';
+
+        var tdHops = document.createElement('td');
+        tdHops.style.color = 'var(--green-dim)';
+        tdHops.style.textAlign = 'center';
+        tdHops.textContent = (path.nodes ? path.nodes.length - 1 : 0);
+
+        tr.append(tdNum, tdRisk, tdDesc, tdHops);
+        return tr;
+    }
+
+    function loadPaths(scanId) {
+        fetch('/api/attack-paths/' + scanId)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var tbody = document.getElementById('paths-table');
+                tbody.replaceChildren();
+                var paths = data.paths || [];
+                if (paths.length === 0) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td');
+                    td.colSpan = 4;
+                    td.style.color = 'var(--green-muted)';
+                    td.style.fontSize = '14px';
+                    td.textContent = '> no attack paths detected';
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                    return;
+                }
+                paths.sort(function(a, b) { return b.risk_score - a.risk_score; });
+                paths.slice(0, 5).forEach(function(path, i) {
+                    tbody.appendChild(createPathRow(path, i));
+                });
+                var criticalCount = paths.filter(function(p) { return p.risk_score >= 8; }).length;
+                document.getElementById('stat-critical').textContent = criticalCount;
+            });
+    }
+
+    function loadCompliance(scanId) {
+        fetch('/api/compliance/' + scanId)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var pct = Math.round(data.summary ? data.summary.overall_pass_rate : 0);
+                var gaugeFill = document.getElementById('gauge-fill');
+                var circumference = 402.12;
+                var offset = circumference * (1 - pct / 100);
+                gaugeFill.style.strokeDashoffset = offset;
+                if (pct < 50) {
+                    gaugeFill.style.stroke = 'var(--red-alert)';
+                } else if (pct < 80) {
+                    gaugeFill.style.stroke = 'var(--yellow-warn)';
+                }
+                document.getElementById('gauge-pct').textContent = pct + '%';
+            });
+    }
+
+    function createScanEntry(scan) {
+        var div = document.createElement('div');
+        div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; ' +
+            'padding:12px 16px; border-bottom:1px solid var(--green-border); font-size:14px;';
+
+        var info = document.createElement('div');
+        var prompt = document.createElement('span');
+        prompt.style.color = 'var(--green-muted)';
+        prompt.textContent = '> ';
+        info.appendChild(prompt);
+
+        var subSpan = document.createElement('span');
+        subSpan.style.color = 'var(--green-primary)';
+        subSpan.textContent = scan.subscription_id;
+        info.appendChild(subSpan);
+
+        var idSpan = document.createElement('span');
+        idSpan.style.cssText = 'margin-left:12px; color:var(--green-muted); font-size:12px;';
+        idSpan.textContent = '[' + scan.scan_id.slice(0, 8) + ']';
+        info.appendChild(idSpan);
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex; gap:14px;';
+
+        ['graph','findings','compliance','inventory'].forEach(function(page) {
+            var a = document.createElement('a');
+            a.href = '/' + page + '/' + scan.scan_id;
+            a.style.cssText = 'color:var(--green-dim); font-size:13px; text-decoration:none;';
+            a.textContent = '[' + page + ']';
+            a.addEventListener('mouseenter', function() { a.style.color = 'var(--green-glow)'; });
+            a.addEventListener('mouseleave', function() { a.style.color = 'var(--green-dim)'; });
+            actions.appendChild(a);
+        });
+
+        div.append(info, actions);
+        return div;
+    }
+
+    /* ---- Form submit ---- */
+    scanForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var subId = subIdInput.value.trim();
+        var rg = document.getElementById('resource-group').value.trim();
+
+        if (!subId) {
+            scanStatusText.textContent = '> ERROR: no AZURE_SUBSCRIPTION_ID configured. Set it in your .env file.';
+            scanStatusText.style.color = 'var(--red-alert)';
+            scanStatus.style.display = 'block';
+            return;
+        }
+
+        scanStatus.style.display = 'block';
+        scanBtn.disabled = true;
+        scanBtn.textContent = '> SCANNING...';
+        scanStatusText.style.color = 'var(--green-glow)';
+        scanStatusText.textContent = '> connecting to azure subscription';
+
+        var steps = [
+            '> authenticating credentials',
+            '> enumerating resource groups',
+            '> discovering virtual machines',
+            '> scanning network security groups',
+            '> analyzing storage accounts',
+            '> checking key vault policies',
+            '> evaluating managed identities',
+            '> scanning for exposed secrets',
+            '> building resource graph',
+            '> computing attack paths',
+            '> mapping compliance controls',
+        ];
+        var stepIdx = 0;
+        var stepTimer = setInterval(function() {
+            if (stepIdx < steps.length) {
+                scanStatusText.textContent = steps[stepIdx];
+                stepIdx++;
+            }
+        }, 800);
+
+        fetch('/api/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription_id: subId, resource_group: rg }),
+        })
+        .then(function(res) {
+            return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+        })
+        .then(function(result) {
+            clearInterval(stepTimer);
+            if (!result.ok) {
+                scanStatusText.textContent = '> ERROR: ' + (result.data.detail || 'scan failed');
+                scanStatusText.style.color = 'var(--red-alert)';
+                return;
+            }
+
+            var data = result.data;
+            scanStatusText.textContent = '> scan complete. ' + (data.resource_count || 0) + ' resources processed.';
+            scanStatusText.style.color = 'var(--green-glow)';
+
+            statsSection.style.display = 'block';
+            document.getElementById('stat-resources').textContent = data.resource_count || 0;
+            document.getElementById('stat-paths').textContent = data.path_count || 0;
+            document.getElementById('stat-findings').textContent = data.findings_count || 0;
+
+            var scanId = data.scan_id;
+            document.getElementById('link-graph').href = '/graph/' + scanId;
+            document.getElementById('link-findings').href = '/findings/' + scanId;
+            document.getElementById('link-compliance').href = '/compliance/' + scanId;
+            document.getElementById('link-inventory').href = '/inventory/' + scanId;
+
+            loadPaths(scanId);
+            loadCompliance(scanId);
+            loadPreviousScans();
+        })
+        .catch(function(err) {
+            clearInterval(stepTimer);
+            scanStatusText.textContent = '> CONNECTION ERROR: ' + err.message;
+            scanStatusText.style.color = 'var(--red-alert)';
+        })
+        .finally(function() {
+            scanBtn.disabled = false;
+            scanBtn.textContent = '> EXECUTE SCAN';
+        });
+    });
+
+    /* ---- Load previous scans & auto-show last results ---- */
+    function loadPreviousScans() {
+        fetch('/api/scans')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var container = document.getElementById('scans-list');
+                if (!data.scans || data.scans.length === 0) return;
+                container.replaceChildren();
+                data.scans.forEach(function(scan) {
+                    container.appendChild(createScanEntry(scan));
+                });
+
+                var lastScan = data.scans[data.scans.length - 1];
+                if (lastScan) {
+                    statsSection.style.display = 'block';
+                    document.getElementById('stat-resources').textContent = lastScan.resource_count || 0;
+                    document.getElementById('stat-paths').textContent = lastScan.path_count || 0;
+
+                    var sid = lastScan.scan_id;
+                    document.getElementById('link-graph').href = '/graph/' + sid;
+                    document.getElementById('link-findings').href = '/findings/' + sid;
+                    document.getElementById('link-compliance').href = '/compliance/' + sid;
+                    document.getElementById('link-inventory').href = '/inventory/' + sid;
+
+                    loadPaths(sid);
+                    loadCompliance(sid);
+                    loadFindings(sid);
+                }
+            });
+    }
+
+    function loadFindings(scanId) {
+        fetch('/api/findings/' + scanId)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var findings = data.findings || [];
+                document.getElementById('stat-findings').textContent = findings.length;
+                var critCount = findings.filter(function(f) { return f.severity === 'CRITICAL'; }).length;
+                document.getElementById('stat-critical').textContent = critCount;
+            });
+    }
+
+    loadPreviousScans();
+})();
+</script>
+{% endblock %}

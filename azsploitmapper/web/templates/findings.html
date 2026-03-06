@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% set active_page = "findings" %}
+
+{% block title %}Findings | AZSploitMapper{% endblock %}
+
+{% block head %}
+<style>
+    .findings-stats {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .findings-stat {
+        flex: 1;
+        text-align: center;
+        padding: 12px 8px;
+        border: 1px solid var(--green-border);
+        background: var(--bg-card);
+    }
+    .findings-stat-val {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .findings-stat-lbl {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-top: 6px;
+    }
+    .filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--green-border);
+        flex-wrap: wrap;
+    }
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .finding-row {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .finding-row:hover td { background: rgba(0, 255, 65, 0.03); }
+    .finding-detail {
+        display: none;
+        padding: 12px 14px;
+        background: rgba(0, 255, 65, 0.02);
+        border-bottom: 1px solid var(--green-border);
+    }
+    .finding-detail.open { display: table-row; }
+    .finding-detail td {
+        padding: 12px 14px;
+    }
+    .detail-grid {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 8px 14px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .detail-label { color: var(--green-muted); text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
+    .detail-value { color: var(--green-primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header glow-text">
+    <span>SECURITY FINDINGS // MISCONFIGURATIONS DETECTED</span>
+    <div class="section-line"></div>
+</div>
+
+<!-- Severity summary stats -->
+<div class="findings-stats">
+    <div class="findings-stat">
+        <div class="findings-stat-val" id="count-critical" style="color:var(--red-alert);">0</div>
+        <div class="findings-stat-lbl" style="color:var(--red-alert);">Critical</div>
+    </div>
+    <div class="findings-stat">
+        <div class="findings-stat-val" id="count-high" style="color:#ff6b35;">0</div>
+        <div class="findings-stat-lbl" style="color:#ff6b35;">High</div>
+    </div>
+    <div class="findings-stat">
+        <div class="findings-stat-val" id="count-medium" style="color:var(--yellow-warn);">0</div>
+        <div class="findings-stat-lbl" style="color:var(--yellow-warn);">Medium</div>
+    </div>
+    <div class="findings-stat">
+        <div class="findings-stat-val" id="count-low" style="color:var(--cyan-info);">0</div>
+        <div class="findings-stat-lbl" style="color:var(--cyan-info);">Low</div>
+    </div>
+    <div class="findings-stat">
+        <div class="findings-stat-val" id="count-info" style="color:var(--green-dim);">0</div>
+        <div class="findings-stat-lbl" style="color:var(--green-dim);">Info</div>
+    </div>
+</div>
+
+<!-- Findings table with filter bar -->
+<div class="term-card">
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label class="term-label" style="margin-bottom:0;">Severity</label>
+            <select id="filter-severity" class="term-input" style="padding:6px 10px; font-size:13px;">
+                <option value="">ALL</option>
+                <option value="CRITICAL">CRITICAL</option>
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="LOW">LOW</option>
+                <option value="INFO">INFO</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="term-label" style="margin-bottom:0;">Resource</label>
+            <select id="filter-resource" class="term-input" style="padding:6px 10px; font-size:13px;">
+                <option value="">ALL TYPES</option>
+            </select>
+        </div>
+        <div class="filter-group" style="flex:1;">
+            <label class="term-label" style="margin-bottom:0;">Search</label>
+            <input type="text" id="filter-search" class="term-input" style="padding:6px 10px; font-size:13px; width:100%;" placeholder="Search findings...">
+        </div>
+        <span id="results-count" style="font-size:12px; color:var(--green-muted); letter-spacing:1px;">0 RESULTS</span>
+    </div>
+
+    <table class="term-table">
+        <thead>
+            <tr>
+                <th style="width:90px;">SEVERITY</th>
+                <th style="width:140px;">RULE ID</th>
+                <th>RESOURCE</th>
+                <th>DESCRIPTION</th>
+                <th style="width:80px;">EXPAND</th>
+            </tr>
+        </thead>
+        <tbody id="findings-body"></tbody>
+    </table>
+
+    <div id="no-findings" style="display:none; padding:24px; text-align:center; font-size:13px; color:var(--green-muted);">
+        > No findings match current filters.
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+var scanId = {{ scan_id | tojson }};
+updateNavLinks(scanId);
+
+var allFindings = [];
+var SEVERITY_BADGE = {
+    CRITICAL: 'badge badge-critical',
+    HIGH:     'badge badge-high',
+    MEDIUM:   'badge badge-medium',
+    LOW:      'badge badge-low',
+    INFO:     'badge badge-info'
+};
+
+async function loadFindings() {
+    var res = await fetch('/api/findings/' + scanId);
+    var data = await res.json();
+    allFindings = data.findings || [];
+    populateResourceFilter();
+    updateCounts();
+    renderFindings();
+}
+
+function populateResourceFilter() {
+    var types = new Set();
+    allFindings.forEach(function(f) { if (f.resource_type) types.add(f.resource_type); });
+    var sel = document.getElementById('filter-resource');
+    types.forEach(function(t) {
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t.toUpperCase();
+        sel.appendChild(opt);
+    });
+}
+
+function updateCounts() {
+    var counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+    allFindings.forEach(function(f) {
+        if (counts[f.severity] !== undefined) counts[f.severity]++;
+    });
+    document.getElementById('count-critical').textContent = counts.CRITICAL;
+    document.getElementById('count-high').textContent = counts.HIGH;
+    document.getElementById('count-medium').textContent = counts.MEDIUM;
+    document.getElementById('count-low').textContent = counts.LOW;
+    document.getElementById('count-info').textContent = counts.INFO;
+}
+
+function getFilteredFindings() {
+    var sev = document.getElementById('filter-severity').value;
+    var res = document.getElementById('filter-resource').value;
+    var search = document.getElementById('filter-search').value.toLowerCase();
+
+    return allFindings.filter(function(f) {
+        if (sev && f.severity !== sev) return false;
+        if (res && f.resource_type !== res) return false;
+        if (search) {
+            var haystack = (f.rule_id + ' ' + f.description + ' ' + (f.resource_id || '')).toLowerCase();
+            if (haystack.indexOf(search) === -1) return false;
+        }
+        return true;
+    });
+}
+
+function renderFindings() {
+    var tbody = document.getElementById('findings-body');
+    var noEl = document.getElementById('no-findings');
+    tbody.replaceChildren();
+
+    var filtered = getFilteredFindings();
+    document.getElementById('results-count').textContent = filtered.length + ' RESULTS';
+
+    if (filtered.length === 0) {
+        noEl.style.display = '';
+        return;
+    }
+    noEl.style.display = 'none';
+
+    filtered.forEach(function(f, i) {
+        var tr = document.createElement('tr');
+        tr.className = 'finding-row';
+
+        var tdSev = document.createElement('td');
+        var badge = document.createElement('span');
+        badge.className = SEVERITY_BADGE[f.severity] || SEVERITY_BADGE.INFO;
+        badge.textContent = f.severity;
+        tdSev.appendChild(badge);
+
+        var tdRule = document.createElement('td');
+        tdRule.style.cssText = 'color:var(--green-primary); font-size:13px;';
+        tdRule.textContent = f.rule_id || '';
+
+        var tdRes = document.createElement('td');
+        tdRes.style.cssText = 'color:var(--green-dim); font-size:13px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+        tdRes.textContent = f.resource_id || f.resource_name || 'N/A';
+
+        var tdDesc = document.createElement('td');
+        tdDesc.style.cssText = 'color:var(--green-mid); font-size:13px;';
+        tdDesc.textContent = f.description || '';
+
+        var tdExpand = document.createElement('td');
+        tdExpand.style.cssText = 'text-align:center; color:var(--green-muted); cursor:pointer;';
+        tdExpand.textContent = '[+]';
+
+        tr.append(tdSev, tdRule, tdRes, tdDesc, tdExpand);
+
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'finding-detail';
+        var detailTd = document.createElement('td');
+        detailTd.colSpan = 5;
+
+        var grid = document.createElement('div');
+        grid.className = 'detail-grid';
+
+        var details = [
+            ['Rule ID', f.rule_id || ''],
+            ['Severity', f.severity || ''],
+            ['Resource ID', f.resource_id || 'N/A'],
+            ['Resource Type', f.resource_type || 'N/A'],
+            ['Description', f.description || ''],
+            ['Remediation', f.remediation || 'N/A'],
+            ['Compliance', f.compliance ? Object.entries(f.compliance).map(function(e) { return e[0] + ': ' + e[1]; }).join(', ') : 'N/A']
+        ];
+
+        details.forEach(function(d) {
+            var lbl = document.createElement('div');
+            lbl.className = 'detail-label';
+            lbl.textContent = d[0];
+            var val = document.createElement('div');
+            val.className = 'detail-value';
+            val.textContent = d[1];
+            grid.append(lbl, val);
+        });
+
+        detailTd.appendChild(grid);
+        detailTr.appendChild(detailTd);
+
+        tr.addEventListener('click', function() {
+            var isOpen = detailTr.classList.contains('open');
+            detailTr.classList.toggle('open');
+            tdExpand.textContent = isOpen ? '[+]' : '[-]';
+        });
+
+        tbody.append(tr, detailTr);
+    });
+}
+
+document.getElementById('filter-severity').addEventListener('change', renderFindings);
+document.getElementById('filter-resource').addEventListener('change', renderFindings);
+document.getElementById('filter-search').addEventListener('input', renderFindings);
+
+loadFindings();
+</script>
+{% endblock %}

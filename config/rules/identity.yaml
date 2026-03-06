@@ -1,0 +1,40 @@
+rules:
+  - id: IDENTITY_OVERPRIVILEGED
+    name: "Overprivileged managed identity"
+    description: "Managed identity has Contributor or Owner role, granting excessive permissions"
+    resource_type: "Microsoft.ManagedIdentity/userAssignedIdentities"
+    severity: HIGH
+    check: "identity_overprivileged"
+    parameters:
+      dangerous_roles:
+        - "Contributor"
+        - "Owner"
+        - "User Access Administrator"
+    remediation: "Apply least-privilege: replace broad roles with specific roles like Storage Blob Data Reader"
+    compliance:
+      cis_azure: "1.23"
+      nist: "AC-6"
+
+  - id: RBAC_BROAD_SCOPE
+    name: "RBAC role assigned at subscription scope"
+    description: "A role assignment grants permissions at the subscription level instead of resource group"
+    resource_type: "Microsoft.Authorization/roleAssignments"
+    severity: MEDIUM
+    check: "rbac_broad_scope"
+    parameters: {}
+    remediation: "Scope role assignments to specific resource groups or resources"
+    compliance:
+      cis_azure: "1.22"
+      nist: "AC-6"
+
+  - id: IDENTITY_UNUSED
+    name: "Managed identity with no recent activity"
+    description: "Managed identity has role assignments but shows no sign-in activity"
+    resource_type: "Microsoft.ManagedIdentity/userAssignedIdentities"
+    severity: LOW
+    check: "identity_unused"
+    parameters: {}
+    remediation: "Review and remove unused managed identities and their role assignments"
+    compliance:
+      cis_azure: "1.24"
+      nist: "AC-2"

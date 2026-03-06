@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AZSploitMapper{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/custom.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="scanlines">
+
+    <canvas id="matrix-bg"></canvas>
+
+    <nav class="sidebar" style="width:240px; position:fixed; top:0; left:0; bottom:32px; display:flex; flex-direction:column; z-index:50;">
+        <div style="padding:22px 18px; border-bottom:1px solid var(--green-border);">
+            <div class="sidebar-logo" style="font-size:15px; font-weight:700;">
+                AZSploitMapper
+            </div>
+            <div style="font-size:10px; color:var(--green-dim); margin-top:4px; letter-spacing:1px;">
+                ATTACK PATH VISUALIZER
+            </div>
+        </div>
+
+        <div style="flex:1; padding:16px 10px; display:flex; flex-direction:column; gap:4px;">
+            <a href="/dashboard" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}"
+               style="display:flex; align-items:center; gap:12px; padding:10px 16px; font-size:14px; text-decoration:none;">
+                <span class="nav-text">dashboard</span>
+            </a>
+            <a href="/graph" id="nav-graph" class="nav-link {% if active_page == 'graph' %}active{% endif %}"
+               style="display:flex; align-items:center; gap:12px; padding:10px 16px; font-size:14px; text-decoration:none;">
+                <span class="nav-text">attack_graph</span>
+            </a>
+            <a href="/findings" id="nav-findings" class="nav-link {% if active_page == 'findings' %}active{% endif %}"
+               style="display:flex; align-items:center; gap:12px; padding:10px 16px; font-size:14px; text-decoration:none;">
+                <span class="nav-text">findings</span>
+            </a>
+            <a href="/compliance" id="nav-compliance" class="nav-link {% if active_page == 'compliance' %}active{% endif %}"
+               style="display:flex; align-items:center; gap:12px; padding:10px 16px; font-size:14px; text-decoration:none;">
+                <span class="nav-text">compliance</span>
+            </a>
+            <a href="/inventory" id="nav-inventory" class="nav-link {% if active_page == 'inventory' %}active{% endif %}"
+               style="display:flex; align-items:center; gap:12px; padding:10px 16px; font-size:14px; text-decoration:none;">
+                <span class="nav-text">inventory</span>
+            </a>
+        </div>
+
+        <!-- Live feed widget: scrolling simulated Azure resource paths -->
+        <div class="live-feed" style="flex:0 0 200px; padding:8px 14px; border-top:1px solid var(--green-border); overflow:hidden;">
+            <div class="live-feed-scroll" id="live-feed"></div>
+        </div>
+
+        <div style="padding:14px 18px; border-top:1px solid var(--green-border); font-size:12px; color:var(--green-dim);">
+            v0.2.0 // by TryHar3r
+        </div>
+    </nav>
+
+    <main style="margin-left:240px; padding:26px 32px 48px; position:relative; z-index:1; min-height:calc(100vh - 32px);">
+        <div class="scroll-text-container" style="margin-bottom:22px; border-bottom:1px solid var(--green-border); padding-bottom:8px;">
+            <span class="scroll-text" id="scroll-banner"></span>
+        </div>
+        {% block content %}{% endblock %}
+    </main>
+
+    <div class="status-bar">
+        <span><span class="status-dot status-dot-ok"></span> SYSTEM ONLINE</span>
+        <span id="status-time"></span>
+        <span style="flex:1;"></span>
+        <span id="status-auth">{% if user_email %}{{ user_email }}{% else %}LocalDev{% endif %}</span>
+        <span>AZSploitMapper v0.2.0</span>
+    </div>
+
+    <script nonce="{{ csp_nonce }}">
+    (function() {
+        var canvas = document.getElementById('matrix-bg');
+        var ctx = canvas.getContext('2d');
+        var cols, drops;
+        var chars = 'AZSploitMapper01>_=/\\|{}[]'.split('');
+        var fontSize = 14;
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            cols = Math.floor(canvas.width / fontSize);
+            drops = Array(cols).fill(1);
+        }
+        function draw() {
+            ctx.fillStyle = 'rgba(0,0,0,0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff41';
+            ctx.font = fontSize + 'px monospace';
+            for (var i = 0; i < drops.length; i++) {
+                var ch = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(ch, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        setInterval(draw, 50);
+    })();
+
+    /* Live feed widget: simulated Azure resource scan output */
+    (function() {
+        var el = document.getElementById('live-feed');
+        if (!el) return;
+        var lines = [
+            '$ az resource list --query "[].name"',
+            'GET /subscriptions/.../resourceGroups',
+            '  rg-vulnerable-lab/',
+            '    Microsoft.Compute/virtualMachines',
+            '      vm-vulnerable-lab [Running]',
+            '    Microsoft.Network/publicIPAddresses',
+            '      pip-vulnerable-vm [20.31.x.x]',
+            '    Microsoft.Network/networkSecurityGroups',
+            '      nsg-allow-all [4 rules]',
+            '    Microsoft.Network/networkInterfaces',
+            '      nic-vulnerable-vm [10.0.0.4]',
+            '    Microsoft.Storage/storageAccounts',
+            '      stvulnlabtncaf0 [Hot/LRS]',
+            '    Microsoft.Network/virtualNetworks',
+            '      vnet-vulnerable-lab [10.0.0.0/16]',
+            '---',
+            'SCAN: checking NSG inbound rules...',
+            'WARN: nsg-allow-all allows * on port *',
+            'WARN: nsg-allow-all allows * on port 22',
+            'WARN: nsg-allow-all allows * on port 3389',
+            'CRIT: public VM with open SSH + RDP',
+            '---',
+            'GRAPH: building attack topology...',
+            'EDGE: internet -> pip-vulnerable-vm',
+            'EDGE: pip -> nic-vulnerable-vm',
+            'EDGE: nic -> vm-vulnerable-lab',
+            'EDGE: vm -> stvulnlabtncaf0 [same RG]',
+            'PATH: internet..vm (risk: 5.8)',
+            'PATH: internet..storage (risk: 8.2)',
+            '---',
+            'COMPLIANCE: CIS Azure v2.1.0',
+            '  6.1 SSH access restricted   [FAIL]',
+            '  6.2 RDP access restricted   [FAIL]',
+            '  6.4 NSG on all NICs         [PASS]',
+            '  7.1 Storage encryption       [PASS]',
+            '  7.4 Public access disabled   [FAIL]',
+        ];
+        var text = lines.join('\n') + '\n';
+        el.textContent = text + text;
+    })();
+
+    (function() {
+        var el = document.getElementById('scroll-banner');
+        if (!el) return;
+        var phrases = [
+            'SCANNING AZURE INFRASTRUCTURE',
+            'DETECTING MISCONFIGURATIONS',
+            'MAPPING ATTACK PATHS',
+            'CIS AZURE BENCHMARK v2.1.0',
+            'NIST SP 800-53 COMPLIANCE',
+            'IDENTIFYING LATERAL MOVEMENT',
+            'RESOURCE GRAPH ANALYSIS',
+            'PRIVILEGE ESCALATION DETECTION',
+            'NETWORK EXPOSURE ASSESSMENT',
+            'IDENTITY & ACCESS AUDIT',
+        ];
+        var sep = '  //  ';
+        var full = phrases.join(sep) + sep;
+        el.textContent = full + full;
+    })();
+
+    (function() {
+        var el = document.getElementById('status-time');
+        if (!el) return;
+        function tick() {
+            var now = new Date();
+            var opts = {timeZone:'Europe/Warsaw', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false};
+            el.textContent = now.toLocaleString('sv-SE', opts).replace(',','') + ' CE/PL';
+        }
+        tick();
+        setInterval(tick, 1000);
+    })();
+    /* Nav link updater used by subpages */
+    function updateNavLinks(scanId) {
+        if (!scanId) return;
+        var map = {graph:'nav-graph', findings:'nav-findings', compliance:'nav-compliance', inventory:'nav-inventory'};
+        Object.keys(map).forEach(function(page) {
+            var el = document.getElementById(map[page]);
+            if (el) el.href = '/' + page + '/' + scanId;
+        });
+    }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

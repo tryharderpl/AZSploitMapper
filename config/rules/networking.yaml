@@ -1,0 +1,54 @@
+rules:
+  - id: NSG_OPEN_SSH
+    name: "SSH open to the internet"
+    description: "NSG allows inbound SSH (port 22) from any source (0.0.0.0/0)"
+    resource_type: "Microsoft.Network/networkSecurityGroups"
+    severity: CRITICAL
+    check: "open_inbound_port"
+    parameters:
+      port: "22"
+      source: "*"
+    remediation: "Restrict SSH access to specific IP ranges using NSG rules"
+    compliance:
+      cis_azure: "6.1"
+      nist: "AC-3"
+
+  - id: NSG_OPEN_RDP
+    name: "RDP open to the internet"
+    description: "NSG allows inbound RDP (port 3389) from any source"
+    resource_type: "Microsoft.Network/networkSecurityGroups"
+    severity: CRITICAL
+    check: "open_inbound_port"
+    parameters:
+      port: "3389"
+      source: "*"
+    remediation: "Restrict RDP access to specific IP ranges or use Azure Bastion"
+    compliance:
+      cis_azure: "6.2"
+      nist: "AC-3"
+
+  - id: NSG_OPEN_ALL_PORTS
+    name: "All ports open to the internet"
+    description: "NSG allows inbound traffic on all ports from any source"
+    resource_type: "Microsoft.Network/networkSecurityGroups"
+    severity: CRITICAL
+    check: "open_inbound_port"
+    parameters:
+      port: "*"
+      source: "*"
+    remediation: "Apply least-privilege NSG rules allowing only required ports"
+    compliance:
+      cis_azure: "6.1"
+      nist: "AC-3"
+
+  - id: PUBLIC_IP_ASSOCIATED
+    name: "Public IP attached to VM"
+    description: "A virtual machine has a public IP address, making it directly reachable from the internet"
+    resource_type: "Microsoft.Network/publicIPAddresses"
+    severity: HIGH
+    check: "public_ip_attached"
+    parameters: {}
+    remediation: "Remove the public IP and use Azure Bastion or VPN for access"
+    compliance:
+      cis_azure: "6.4"
+      nist: "SC-7"

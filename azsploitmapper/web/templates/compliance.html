@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% set active_page = "compliance" %}
+
+{% block title %}Compliance | AZSploitMapper{% endblock %}
+
+{% block head %}
+<style>
+    .compliance-top {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+        align-items: stretch;
+    }
+    .gauge-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 32px;
+        min-width: 200px;
+    }
+    .gauge-pct {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--green-glow);
+        text-shadow: 0 0 10px var(--green-glow);
+        margin-top: 8px;
+    }
+    .gauge-label {
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: var(--green-muted);
+        text-transform: uppercase;
+        margin-top: 6px;
+    }
+    .summary-stats {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        align-content: center;
+    }
+    .fw-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 16px;
+    }
+    .fw-tab {
+        padding: 10px 20px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        cursor: pointer;
+        border: 1px solid var(--green-border);
+        background: var(--bg-card);
+        color: var(--green-dim);
+        transition: all 0.2s;
+    }
+    .fw-tab:first-child { border-right: none; }
+    .fw-tab:hover { background: var(--bg-card-hover); color: var(--green-primary); }
+    .fw-tab.active {
+        background: rgba(0, 255, 65, 0.06);
+        color: var(--green-glow);
+        border-color: var(--green-dim);
+        text-shadow: 0 0 5px var(--green-glow);
+    }
+    .controls-group {
+        margin-bottom: 20px;
+    }
+    .controls-group-header {
+        padding: 8px 14px;
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--green-dim);
+        background: rgba(0, 255, 65, 0.03);
+        border-bottom: 1px solid var(--green-border);
+    }
+    .controls-group-header::before {
+        content: '> ';
+        color: var(--green-muted);
+    }
+    .filter-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--green-border);
+    }
+    .filter-toggle {
+        padding: 5px 14px;
+        font-size: 12px;
+        cursor: pointer;
+        border: 1px solid var(--green-border);
+        background: var(--bg-card);
+        color: var(--green-dim);
+        font-family: var(--font-mono);
+        transition: all 0.2s;
+    }
+    .filter-toggle:hover { background: var(--bg-card-hover); color: var(--green-primary); }
+    .filter-toggle.active {
+        background: rgba(255, 60, 60, 0.1);
+        color: var(--red-alert);
+        border-color: var(--red-alert);
+    }
+    .control-row { cursor: pointer; transition: background 0.15s; }
+    .control-row:hover { background: rgba(0, 255, 65, 0.04); }
+    .control-detail {
+        display: none;
+        background: var(--bg-deep);
+        border-top: 1px solid var(--green-border);
+    }
+    .control-detail.open { display: table-row; }
+    .detail-inner {
+        padding: 14px 20px;
+        font-size: 14px;
+        line-height: 1.7;
+    }
+    .detail-inner .detail-section {
+        margin-bottom: 12px;
+    }
+    .detail-inner .detail-section-label {
+        color: var(--green-dim);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+    }
+    .detail-inner .detail-section-value {
+        color: var(--green-mid);
+    }
+    .affected-list {
+        list-style: none;
+        padding: 0;
+        margin: 4px 0 0 0;
+    }
+    .affected-list li {
+        padding: 3px 0;
+        font-size: 13px;
+        color: var(--green-dim);
+        word-break: break-all;
+    }
+    .affected-list li::before {
+        content: '> ';
+        color: var(--red-alert);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header glow-text">
+    <span>COMPLIANCE ASSESSMENT</span>
+    <div class="section-line"></div>
+</div>
+
+<!-- Framework tabs -->
+<div class="fw-tabs">
+    <div class="fw-tab active" data-fw="cis_azure">CIS AZURE BENCHMARK</div>
+    <div class="fw-tab" data-fw="nist">NIST SP 800-53</div>
+</div>
+
+<!-- Top row: gauge + summary -->
+<div class="compliance-top">
+    <div class="term-card gauge-container">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+            <circle class="gauge-ring gauge-track" cx="70" cy="70" r="58"
+                    fill="none" stroke-width="8"/>
+            <circle class="gauge-ring gauge-fill" id="gauge-circle" cx="70" cy="70" r="58"
+                    fill="none" stroke-width="8"
+                    stroke-dasharray="364.42"
+                    stroke-dashoffset="364.42"
+                    stroke-linecap="round"/>
+        </svg>
+        <div class="gauge-pct glow-text-strong" id="gauge-pct">0%</div>
+        <div class="gauge-label">PASS RATE</div>
+    </div>
+
+    <div class="summary-stats">
+        <div class="term-card stat-card">
+            <div class="stat-value" id="sum-total" style="color:var(--green-primary);">0</div>
+            <div class="stat-label">TOTAL CONTROLS</div>
+        </div>
+        <div class="term-card stat-card">
+            <div class="stat-value" id="sum-pass" style="color:var(--green-glow);">0</div>
+            <div class="stat-label">PASSING</div>
+        </div>
+        <div class="term-card stat-card">
+            <div class="stat-value" id="sum-fail" style="color:var(--red-alert);">0</div>
+            <div class="stat-label">FAILING</div>
+        </div>
+    </div>
+</div>
+
+<!-- Controls table -->
+<div class="term-card" id="controls-container">
+    <div class="term-card-header">CONTROLS</div>
+    <div class="filter-row">
+        <button id="btn-show-all" class="filter-toggle active">ALL</button>
+        <button id="btn-show-fail" class="filter-toggle">FAIL ONLY</button>
+        <span id="filter-count" style="margin-left:auto; font-size:13px; color:var(--green-muted);"></span>
+    </div>
+    <div id="controls-content">
+        <div style="padding:20px; text-align:center; font-size:13px; color:var(--green-muted);" class="pulse-green">
+            Loading compliance data...
+        </div>
+    </div>
+</div>
+
+<!-- Framework description -->
+<div class="term-card" style="margin-top:16px; padding:16px;">
+    <div id="fw-description" style="font-size:13px; color:var(--green-dim); line-height:1.7;">
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+var scanId = {{ scan_id | tojson }};
+updateNavLinks(scanId);
+
+var complianceData = null;
+var activeFramework = 'cis_azure';
+var showFailOnly = false;
+
+var FW_DESCRIPTIONS = {
+    cis_azure: 'CIS Azure Foundations Benchmark provides prescriptive guidance for establishing a secure baseline configuration for Azure. These controls cover identity and access management, security center, storage accounts, database services, logging and monitoring, networking, and virtual machines.',
+    nist: 'NIST SP 800-53 provides a catalog of security and privacy controls for federal information systems and organizations. Controls are organized into families including Access Control (AC), Audit and Accountability (AU), Configuration Management (CM), Identification and Authentication (IA), and System and Communications Protection (SC).'
+};
+
+var GAUGE_CIRCUMFERENCE = 2 * Math.PI * 58;
+
+async function loadCompliance() {
+    var res = await fetch('/api/compliance/' + scanId);
+    complianceData = await res.json();
+    updateFrameworkSummary();
+    renderFramework(activeFramework);
+    updateDescription();
+}
+
+function getFrameworkStats(fw) {
+    var frameworks = (complianceData && complianceData.frameworks) || {};
+    var fwData = frameworks[fw];
+    if (!fwData || !fwData.controls) return { total: 0, pass: 0, fail: 0, rate: 0 };
+
+    var controls = fwData.controls;
+    var total = Object.keys(controls).length;
+    var fail = 0;
+    var pass = 0;
+    Object.values(controls).forEach(function(c) {
+        if (c.status === 'FAIL') fail++;
+        else pass++;
+    });
+    var rate = total > 0 ? Math.round((pass / total) * 1000) / 10 : 0;
+    return { total: total, pass: pass, fail: fail, rate: rate };
+}
+
+function updateFrameworkSummary() {
+    var stats = getFrameworkStats(activeFramework);
+
+    document.getElementById('sum-total').textContent = stats.total;
+    document.getElementById('sum-pass').textContent = stats.pass;
+    document.getElementById('sum-fail').textContent = stats.fail;
+
+    document.getElementById('gauge-pct').textContent = stats.rate + '%';
+
+    var circle = document.getElementById('gauge-circle');
+    var offset = GAUGE_CIRCUMFERENCE - (stats.rate / 100) * GAUGE_CIRCUMFERENCE;
+    circle.style.strokeDashoffset = offset;
+
+    if (stats.rate >= 80) {
+        circle.style.stroke = 'var(--green-glow)';
+    } else if (stats.rate >= 50) {
+        circle.style.stroke = 'var(--yellow-warn)';
+    } else {
+        circle.style.stroke = 'var(--red-alert)';
+    }
+}
+
+function shortResourceId(rid) {
+    if (!rid) return 'N/A';
+    var parts = rid.split('/');
+    return parts[parts.length - 1] || rid;
+}
+
+function renderFramework(fw) {
+    var container = document.getElementById('controls-content');
+    container.replaceChildren();
+
+    var frameworks = (complianceData && complianceData.frameworks) || {};
+    var fwData = frameworks[fw];
+
+    if (!fwData || !fwData.controls || Object.keys(fwData.controls).length === 0) {
+        var p = document.createElement('div');
+        p.style.cssText = 'padding:20px; text-align:center; font-size:13px; color:var(--green-muted);';
+        p.textContent = '> No compliance data for this framework.';
+        container.appendChild(p);
+        document.getElementById('filter-count').textContent = '';
+        return;
+    }
+
+    var controls = fwData.controls;
+    var categories = {};
+    var visibleCount = 0;
+
+    Object.entries(controls).forEach(function(entry) {
+        var controlId = entry[0];
+        var info = entry[1];
+        if (showFailOnly && info.status !== 'FAIL') return;
+        var cat = info.category || 'General';
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push({ id: controlId, info: info });
+        visibleCount++;
+    });
+
+    document.getElementById('filter-count').textContent = visibleCount + ' controls shown';
+
+    if (visibleCount === 0) {
+        var p = document.createElement('div');
+        p.style.cssText = 'padding:20px; text-align:center; font-size:13px; color:var(--green-muted);';
+        p.textContent = showFailOnly ? '> All controls are passing in this framework.' : '> No controls found.';
+        container.appendChild(p);
+        return;
+    }
+
+    Object.entries(categories).forEach(function(catEntry) {
+        var catName = catEntry[0];
+        var items = catEntry[1];
+
+        var group = document.createElement('div');
+        group.className = 'controls-group';
+
+        var header = document.createElement('div');
+        header.className = 'controls-group-header';
+        var failsInCat = items.filter(function(i) { return i.info.status === 'FAIL'; }).length;
+        header.textContent = catName;
+        if (failsInCat > 0) {
+            var failTag = document.createElement('span');
+            failTag.style.cssText = 'color:var(--red-alert); margin-left:10px; font-size:12px;';
+            failTag.textContent = failsInCat + ' FAIL';
+            header.appendChild(failTag);
+        }
+        group.appendChild(header);
+
+        var table = document.createElement('table');
+        table.className = 'term-table';
+
+        var thead = document.createElement('thead');
+        var headRow = document.createElement('tr');
+        ['CONTROL ID', 'TITLE', 'STATUS', 'AFFECTED', ''].forEach(function(col) {
+            var th = document.createElement('th');
+            th.textContent = col;
+            if (col === 'STATUS') th.style.width = '80px';
+            if (col === 'AFFECTED') th.style.width = '90px';
+            if (col === '') th.style.width = '40px';
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        items.forEach(function(item) {
+            var tr = document.createElement('tr');
+            tr.className = 'control-row';
+
+            var tdId = document.createElement('td');
+            tdId.style.cssText = 'color:var(--green-primary); font-size:13px;';
+            tdId.textContent = item.id;
+
+            var tdTitle = document.createElement('td');
+            tdTitle.style.cssText = 'color:var(--green-mid); font-size:13px;';
+            tdTitle.textContent = item.info.title || '';
+
+            var tdStatus = document.createElement('td');
+            var badge = document.createElement('span');
+            var affected = item.info.affected_resources || [];
+            var affectedCount = affected.length;
+            var isFailing = (item.info.status === 'FAIL');
+            badge.className = isFailing ? 'badge badge-fail' : 'badge badge-pass';
+            badge.textContent = isFailing ? 'FAIL' : 'PASS';
+            tdStatus.appendChild(badge);
+
+            var tdAffected = document.createElement('td');
+            tdAffected.style.cssText = 'font-size:13px; text-align:center;';
+            tdAffected.style.color = isFailing ? 'var(--red-alert)' : 'var(--green-muted)';
+            tdAffected.textContent = affectedCount;
+
+            var tdExpand = document.createElement('td');
+            tdExpand.style.cssText = 'text-align:center; color:var(--green-muted); font-size:14px;';
+            tdExpand.textContent = '[+]';
+
+            tr.append(tdId, tdTitle, tdStatus, tdAffected, tdExpand);
+
+            var detailTr = document.createElement('tr');
+            detailTr.className = 'control-detail';
+            var detailTd = document.createElement('td');
+            detailTd.colSpan = 5;
+
+            var inner = document.createElement('div');
+            inner.className = 'detail-inner';
+
+            if (item.info.description) {
+                var descSec = document.createElement('div');
+                descSec.className = 'detail-section';
+                var descLabel = document.createElement('div');
+                descLabel.className = 'detail-section-label';
+                descLabel.textContent = 'Description';
+                var descVal = document.createElement('div');
+                descVal.className = 'detail-section-value';
+                descVal.textContent = item.info.description;
+                descSec.append(descLabel, descVal);
+                inner.appendChild(descSec);
+            }
+
+            if (isFailing) {
+                var reasonSec = document.createElement('div');
+                reasonSec.className = 'detail-section';
+                var reasonLabel = document.createElement('div');
+                reasonLabel.className = 'detail-section-label';
+                reasonLabel.textContent = 'Why Failing';
+                var reasonVal = document.createElement('div');
+                reasonVal.className = 'detail-section-value';
+                reasonVal.style.color = 'var(--red-alert)';
+                reasonVal.textContent = affectedCount + ' resource(s) do not comply with this control.';
+                reasonSec.append(reasonLabel, reasonVal);
+                inner.appendChild(reasonSec);
+            } else {
+                var passSec = document.createElement('div');
+                passSec.className = 'detail-section';
+                var passLabel = document.createElement('div');
+                passLabel.className = 'detail-section-label';
+                passLabel.textContent = 'Status';
+                var passVal = document.createElement('div');
+                passVal.className = 'detail-section-value';
+                passVal.style.color = 'var(--green-glow)';
+                passVal.textContent = 'All scanned resources comply with this control.';
+                passSec.append(passLabel, passVal);
+                inner.appendChild(passSec);
+            }
+
+            if (affected.length > 0) {
+                var resSec = document.createElement('div');
+                resSec.className = 'detail-section';
+                var resLabel = document.createElement('div');
+                resLabel.className = 'detail-section-label';
+                resLabel.textContent = 'Affected Resources (' + affected.length + ')';
+                var resList = document.createElement('ul');
+                resList.className = 'affected-list';
+                affected.forEach(function(rid) {
+                    var li = document.createElement('li');
+                    li.textContent = shortResourceId(rid);
+                    li.title = rid;
+                    resList.appendChild(li);
+                });
+                resSec.append(resLabel, resList);
+                inner.appendChild(resSec);
+            }
+
+            if (item.info.remediation) {
+                var remSec = document.createElement('div');
+                remSec.className = 'detail-section';
+                var remLabel = document.createElement('div');
+                remLabel.className = 'detail-section-label';
+                remLabel.textContent = 'Remediation';
+                var remVal = document.createElement('div');
+                remVal.className = 'detail-section-value';
+                remVal.style.color = 'var(--cyan-info)';
+                remVal.textContent = item.info.remediation;
+                remSec.append(remLabel, remVal);
+                inner.appendChild(remSec);
+            }
+
+            detailTd.appendChild(inner);
+            detailTr.appendChild(detailTd);
+
+            tr.addEventListener('click', function() {
+                var isOpen = detailTr.classList.contains('open');
+                detailTr.classList.toggle('open');
+                tdExpand.textContent = isOpen ? '[+]' : '[-]';
+            });
+
+            tbody.append(tr, detailTr);
+        });
+
+        table.appendChild(tbody);
+        group.appendChild(table);
+        container.appendChild(group);
+    });
+}
+
+function updateDescription() {
+    document.getElementById('fw-description').textContent = FW_DESCRIPTIONS[activeFramework] || '';
+}
+
+document.getElementById('btn-show-all').addEventListener('click', function() {
+    showFailOnly = false;
+    document.getElementById('btn-show-all').classList.add('active');
+    document.getElementById('btn-show-fail').classList.remove('active');
+    renderFramework(activeFramework);
+});
+
+document.getElementById('btn-show-fail').addEventListener('click', function() {
+    showFailOnly = true;
+    document.getElementById('btn-show-fail').classList.add('active');
+    document.getElementById('btn-show-all').classList.remove('active');
+    renderFramework(activeFramework);
+});
+
+document.querySelectorAll('.fw-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.fw-tab').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        activeFramework = tab.dataset.fw;
+        updateFrameworkSummary();
+        renderFramework(activeFramework);
+        updateDescription();
+    });
+});
+
+loadCompliance();
+</script>
+{% endblock %}

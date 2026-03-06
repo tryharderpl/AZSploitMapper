@@ -1,0 +1,36 @@
+rules:
+  - id: VM_PASSWORD_AUTH
+    name: "VM uses password authentication"
+    description: "Linux VM allows SSH password login instead of key-based authentication"
+    resource_type: "Microsoft.Compute/virtualMachines"
+    severity: HIGH
+    check: "vm_password_auth"
+    parameters: {}
+    remediation: "Disable password authentication and use SSH key pairs instead"
+    compliance:
+      cis_azure: "7.4"
+      nist: "IA-2"
+
+  - id: VM_NO_MANAGED_DISK
+    name: "VM uses unmanaged disks"
+    description: "VM uses unmanaged disks which lack built-in encryption and RBAC"
+    resource_type: "Microsoft.Compute/virtualMachines"
+    severity: MEDIUM
+    check: "vm_unmanaged_disk"
+    parameters: {}
+    remediation: "Migrate to managed disks for automatic encryption and RBAC support"
+    compliance:
+      cis_azure: "7.1"
+      nist: "SC-28"
+
+  - id: VM_PUBLIC_IP_DIRECT
+    name: "VM directly exposed to internet"
+    description: "VM has a public IP and open NSG, making it an attack entry point"
+    resource_type: "Microsoft.Compute/virtualMachines"
+    severity: CRITICAL
+    check: "vm_internet_exposed"
+    parameters: {}
+    remediation: "Remove public IP and use Azure Bastion or VPN for remote access"
+    compliance:
+      cis_azure: "6.4"
+      nist: "SC-7"

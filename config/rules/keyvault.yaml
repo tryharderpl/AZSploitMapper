@@ -1,0 +1,36 @@
+rules:
+  - id: KV_NO_SOFT_DELETE
+    name: "Key Vault soft delete not enabled"
+    description: "Key Vault does not have soft delete, accidentally deleted secrets are permanently lost"
+    resource_type: "Microsoft.KeyVault/vaults"
+    severity: HIGH
+    check: "kv_no_soft_delete"
+    parameters: {}
+    remediation: "Enable soft delete on the Key Vault (enabled by default since Feb 2025)"
+    compliance:
+      cis_azure: "8.4"
+      nist: "CP-9"
+
+  - id: KV_NO_PURGE_PROTECTION
+    name: "Key Vault purge protection not enabled"
+    description: "Without purge protection, soft-deleted secrets can be permanently purged"
+    resource_type: "Microsoft.KeyVault/vaults"
+    severity: MEDIUM
+    check: "kv_no_purge_protection"
+    parameters: {}
+    remediation: "Enable purge protection on the Key Vault"
+    compliance:
+      cis_azure: "8.5"
+      nist: "CP-9"
+
+  - id: KV_BROAD_ACCESS
+    name: "Key Vault has overly broad access policy"
+    description: "Key Vault access policy grants GET permissions to secrets for multiple principals"
+    resource_type: "Microsoft.KeyVault/vaults"
+    severity: HIGH
+    check: "kv_broad_access"
+    parameters: {}
+    remediation: "Use RBAC-based access control instead of vault access policies"
+    compliance:
+      cis_azure: "8.1"
+      nist: "AC-6"

@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% set active_page = "inventory" %}
+
+{% block title %}Inventory | AZSploitMapper{% endblock %}
+
+{% block content %}
+
+<!-- ============ RESOURCE INVENTORY ============ -->
+<div class="section-header glow-text">
+    <span>RESOURCE INVENTORY</span>
+    <div class="section-line"></div>
+</div>
+
+<!-- Summary Stats Bar -->
+<div class="term-card" style="margin-bottom:20px;">
+    <div class="term-card-header">RESOURCE DATABASE</div>
+    <div id="summary-stats"
+         style="display:flex; gap:24px; padding:14px 20px; flex-wrap:wrap; align-items:center;">
+        <div style="font-size:13px;">
+            <span style="color:var(--green-muted);">TOTAL: </span>
+            <span id="total-count" class="glow-text" style="color:var(--green-glow); font-size:17px; font-weight:700;">
+                0
+            </span>
+        </div>
+        <div id="type-counts" style="display:flex; gap:16px; flex-wrap:wrap;"></div>
+    </div>
+</div>
+
+<!-- Filter Input -->
+<div style="margin-bottom:20px;">
+    <label class="term-label" for="res-filter">filter_resources</label>
+    <input type="text" id="res-filter" class="term-input"
+           placeholder="search by name, type, or resource group..."
+           style="width:100%; max-width:480px; margin-top:4px;">
+</div>
+
+<!-- Two-column layout: tree + detail panel -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+
+    <!-- Resource Tree -->
+    <div class="term-card" style="max-height:calc(100vh - 300px); overflow-y:auto;">
+        <div class="term-card-header">RESOURCE TREE</div>
+        <div id="resource-tree" style="padding:16px;">
+            <span class="pulse-green" style="font-size:13px; color:var(--green-muted);">
+                > loading resources...
+            </span>
+        </div>
+    </div>
+
+    <!-- Resource Detail Panel -->
+    <div id="detail-panel" class="term-card"
+         style="max-height:calc(100vh - 300px); overflow-y:auto; display:none;">
+        <div class="term-card-header">RESOURCE DETAILS</div>
+        <div id="detail-content" style="padding:16px;"></div>
+    </div>
+
+    <!-- Placeholder shown when no resource is selected -->
+    <div id="detail-placeholder" class="term-card" style="padding:40px; text-align:center;">
+        <div style="font-size:13px; color:var(--green-muted); margin-bottom:8px;">
+            // SELECT A RESOURCE
+        </div>
+        <div style="font-size:12px; color:var(--green-muted); opacity:0.6;">
+            Click on any resource in the tree to view its details,
+            properties, and associated security findings.
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var scanId = {{ scan_id | tojson }};
+    updateNavLinks(scanId);
+
+    var allResources = [];
+    var allFindings = [];
+    var groupedResources = {};
+
+    var treeContainer = document.getElementById('resource-tree');
+    var detailPanel = document.getElementById('detail-panel');
+    var detailContent = document.getElementById('detail-content');
+    var detailPlaceholder = document.getElementById('detail-placeholder');
+    var filterInput = document.getElementById('res-filter');
+
+    /* ---- Shorten resource type for display ---- */
+    function shortType(fullType) {
+        var parts = (fullType || '').split('/');
+        return parts.length > 1 ? parts[1] : fullType;
+    }
+
+    /* ---- Type icon prefix ---- */
+    function typeIcon(fullType) {
+        var t = (fullType || '').toLowerCase();
+        if (t.indexOf('virtualmachine') !== -1) return '[VM]';
+        if (t.indexOf('networksecuritygroup') !== -1) return '[NSG]';
+        if (t.indexOf('storageaccount') !== -1) return '[STR]';
+        if (t.indexOf('vault') !== -1) return '[KV]';
+        if (t.indexOf('managedidentit') !== -1) return '[MI]';
+        if (t.indexOf('publicipaddress') !== -1) return '[PIP]';
+        if (t.indexOf('networkinterface') !== -1) return '[NIC]';
+        if (t.indexOf('roleassignment') !== -1) return '[ROLE]';
+        if (t.indexOf('virtualnetwork') !== -1) return '[VNET]';
+        if (t.indexOf('subnet') !== -1) return '[SUB]';
+        return '[RES]';
+    }
+
+    /* ---- Severity badge class ---- */
+    function severityBadge(severity) {
+        var s = (severity || '').toUpperCase();
+        if (s === 'CRITICAL') return 'badge badge-critical';
+        if (s === 'HIGH') return 'badge badge-high';
+        if (s === 'MEDIUM') return 'badge badge-medium';
+        if (s === 'LOW') return 'badge badge-low';
+        return 'badge badge-info';
+    }
+
+    /* ---- Group resources by type ---- */
+    function groupByType(resources) {
+        var groups = {};
+        resources.forEach(function(r) {
+            var key = r.type || 'Unknown';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+        });
+        return groups;
+    }
+
+    /* ---- Render the resource tree ---- */
+    function renderTree(filterText) {
+        treeContainer.replaceChildren();
+        var query = (filterText || '').toLowerCase();
+
+        var sortedTypes = Object.keys(groupedResources).sort();
+        var visibleTotal = 0;
+
+        sortedTypes.forEach(function(typeName) {
+            var resources = groupedResources[typeName];
+
+            var filtered = resources.filter(function(r) {
+                if (!query) return true;
+                var searchable = ((r.name || '') + ' ' + (r.type || '') + ' ' +
+                    (r.resource_group || '')).toLowerCase();
+                return searchable.indexOf(query) !== -1;
+            });
+
+            if (filtered.length === 0) return;
+            visibleTotal += filtered.length;
+
+            /* Type group header */
+            var groupHeader = document.createElement('div');
+            groupHeader.style.cssText = 'cursor:pointer; padding:8px 0; font-size:13px; ' +
+                'display:flex; align-items:center; gap:8px; user-select:none;';
+
+            var arrow = document.createElement('span');
+            arrow.style.cssText = 'color:var(--green-muted); font-size:12px; width:12px; display:inline-block;';
+            arrow.textContent = 'v';
+
+            var icon = document.createElement('span');
+            icon.style.cssText = 'color:var(--green-dim); font-size:12px;';
+            icon.textContent = typeIcon(typeName);
+
+            var typeLbl = document.createElement('span');
+            typeLbl.style.color = 'var(--green-primary)';
+            typeLbl.textContent = shortType(typeName);
+
+            var countLbl = document.createElement('span');
+            countLbl.style.cssText = 'color:var(--green-muted); font-size:12px; margin-left:auto;';
+            countLbl.textContent = '(' + filtered.length + ')';
+
+            groupHeader.append(arrow, icon, typeLbl, countLbl);
+
+            var groupItems = document.createElement('div');
+            groupItems.className = 'res-tree-group';
+
+            filtered.forEach(function(resource) {
+                var item = document.createElement('div');
+                item.className = 'res-tree-item';
+                item.textContent = resource.name || resource.id || 'unnamed';
+                item.dataset.resourceId = resource.id || '';
+                item.addEventListener('click', function() {
+                    showResourceDetail(resource);
+                    document.querySelectorAll('.res-tree-item').forEach(function(el) {
+                        el.style.color = '';
+                        el.style.textShadow = '';
+                    });
+                    item.style.color = 'var(--green-glow)';
+                    item.style.textShadow = '0 0 5px var(--green-glow)';
+                });
+                groupItems.appendChild(item);
+            });
+
+            var collapsed = false;
+            groupHeader.addEventListener('click', function() {
+                collapsed = !collapsed;
+                groupItems.style.display = collapsed ? 'none' : 'block';
+                arrow.textContent = collapsed ? '>' : 'v';
+            });
+
+            treeContainer.append(groupHeader, groupItems);
+        });
+
+        if (visibleTotal === 0) {
+            var empty = document.createElement('div');
+            empty.style.cssText = 'font-size:13px; color:var(--green-muted); padding:16px 0;';
+            empty.textContent = '> no resources match filter "' + query + '"';
+            treeContainer.appendChild(empty);
+        }
+    }
+
+    /* ---- Render resource detail panel ---- */
+    function showResourceDetail(resource) {
+        detailPlaceholder.style.display = 'none';
+        detailPanel.style.display = 'block';
+        detailContent.replaceChildren();
+
+        /* Resource name */
+        var nameDiv = document.createElement('div');
+        nameDiv.style.cssText = 'font-size:15px; font-weight:600; color:var(--green-glow); margin-bottom:14px;';
+        nameDiv.textContent = '> ' + (resource.name || 'unnamed');
+        detailContent.appendChild(nameDiv);
+
+        /* Metadata fields */
+        var fields = [
+            ['TYPE', resource.type || 'N/A'],
+            ['LOCATION', resource.location || 'N/A'],
+            ['RESOURCE GROUP', resource.resource_group || 'N/A'],
+            ['RESOURCE ID', resource.id || 'N/A'],
+        ];
+
+        fields.forEach(function(pair) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex; gap:12px; padding:5px 0; font-size:12px; ' +
+                'border-bottom:1px solid rgba(0,255,65,0.03);';
+
+            var label = document.createElement('span');
+            label.style.cssText = 'color:var(--green-muted); min-width:120px; ' +
+                'text-transform:uppercase; letter-spacing:1px; font-size:11px;';
+            label.textContent = pair[0];
+
+            var value = document.createElement('span');
+            value.style.cssText = 'color:var(--green-mid); word-break:break-all;';
+            value.textContent = pair[1];
+
+            row.append(label, value);
+            detailContent.appendChild(row);
+        });
+
+        /* Properties JSON viewer */
+        var props = resource.properties || resource.config || null;
+        if (props && typeof props === 'object' && Object.keys(props).length > 0) {
+            var propHeader = document.createElement('div');
+            propHeader.style.cssText = 'margin-top:20px; margin-bottom:8px; font-size:11px; ' +
+                'color:var(--green-dim); letter-spacing:2px; text-transform:uppercase;';
+            propHeader.textContent = '// PROPERTIES';
+            detailContent.appendChild(propHeader);
+
+            var propBox = document.createElement('pre');
+            propBox.style.cssText = 'background:var(--bg-deep); border:1px solid var(--green-border); ' +
+                'padding:12px; font-size:12px; color:var(--green-mid); overflow-x:auto; ' +
+                'max-height:300px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;';
+
+            var formatted = JSON.stringify(props, null, 2);
+            propBox.textContent = formatted;
+            detailContent.appendChild(propBox);
+        }
+
+        /* Associated findings */
+        var resFindings = allFindings.filter(function(f) {
+            return f.resource_id === resource.id ||
+                   f.resource_name === resource.name;
+        });
+
+        if (resFindings.length > 0) {
+            var findHeader = document.createElement('div');
+            findHeader.style.cssText = 'margin-top:20px; margin-bottom:8px; font-size:11px; ' +
+                'color:var(--green-dim); letter-spacing:2px; text-transform:uppercase; ' +
+                'display:flex; align-items:center; gap:8px;';
+            findHeader.textContent = '// FINDINGS ';
+
+            var findCount = document.createElement('span');
+            findCount.style.cssText = 'color:var(--red-alert); font-size:12px;';
+            findCount.textContent = '(' + resFindings.length + ')';
+            findHeader.appendChild(findCount);
+            detailContent.appendChild(findHeader);
+
+            resFindings.forEach(function(finding) {
+                var fDiv = document.createElement('div');
+                fDiv.style.cssText = 'padding:10px; margin-bottom:6px; ' +
+                    'border:1px solid var(--green-border); background:var(--bg-deep);';
+
+                var fTop = document.createElement('div');
+                fTop.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:6px;';
+
+                var badge = document.createElement('span');
+                badge.className = severityBadge(finding.severity);
+                badge.textContent = finding.severity || 'INFO';
+
+                var ruleId = document.createElement('span');
+                ruleId.style.cssText = 'font-size:12px; color:var(--green-primary);';
+                ruleId.textContent = finding.rule_id || '';
+
+                fTop.append(badge, ruleId);
+
+                var fDesc = document.createElement('div');
+                fDesc.style.cssText = 'font-size:12px; color:var(--green-dim); line-height:1.6;';
+                fDesc.textContent = finding.description || '';
+
+                fDiv.append(fTop, fDesc);
+
+                if (finding.remediation) {
+                    var fRem = document.createElement('div');
+                    fRem.style.cssText = 'font-size:11px; color:var(--cyan-info); margin-top:6px; ' +
+                        'padding-top:6px; border-top:1px solid var(--green-border);';
+                    fRem.textContent = 'FIX: ' + finding.remediation;
+                    fDiv.appendChild(fRem);
+                }
+
+                detailContent.appendChild(fDiv);
+            });
+        } else {
+            var noFindings = document.createElement('div');
+            noFindings.style.cssText = 'margin-top:20px; font-size:12px; color:var(--green-muted);';
+            noFindings.textContent = '> no findings for this resource';
+            detailContent.appendChild(noFindings);
+        }
+    }
+
+    /* ---- Update summary stats bar ---- */
+    function updateSummary() {
+        document.getElementById('total-count').textContent = allResources.length;
+
+        var typeCounts = document.getElementById('type-counts');
+        typeCounts.replaceChildren();
+
+        var sortedTypes = Object.keys(groupedResources).sort();
+        sortedTypes.forEach(function(typeName) {
+            var count = groupedResources[typeName].length;
+            var chip = document.createElement('span');
+            chip.style.cssText = 'font-size:11px; padding:3px 8px; ' +
+                'border:1px solid var(--green-border); color:var(--green-dim);';
+            chip.textContent = typeIcon(typeName) + ' ' + shortType(typeName) + ': ' + count;
+            typeCounts.appendChild(chip);
+        });
+    }
+
+    /* ---- Filter handler ---- */
+    filterInput.addEventListener('input', function() {
+        renderTree(filterInput.value);
+    });
+
+    /* ---- Load data from API ---- */
+    Promise.all([
+        fetch('/api/resources/' + scanId).then(function(r) { return r.json(); }),
+        fetch('/api/findings/' + scanId).then(function(r) { return r.json(); }),
+    ])
+    .then(function(results) {
+        allResources = Array.isArray(results[0]) ? results[0] : (results[0].resources || []);
+        allFindings = (results[1].findings || []);
+        groupedResources = groupByType(allResources);
+
+        updateSummary();
+        renderTree('');
+    })
+    .catch(function(err) {
+        treeContainer.replaceChildren();
+        var errMsg = document.createElement('div');
+        errMsg.style.cssText = 'font-size:12px; color:var(--red-alert);';
+        errMsg.textContent = '> ERROR: failed to load resources - ' + err.message;
+        treeContainer.appendChild(errMsg);
+    });
+})();
+</script>
+{% endblock %}

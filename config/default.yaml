@@ -1,0 +1,45 @@
+# =============================================================================
+# AZSploitMapper Default Configuration
+# =============================================================================
+# Sensitive values (credentials, API keys) must be set via environment
+# variables, NOT in this file. See .env.example for all available settings.
+# =============================================================================
+
+scanner:
+  # Subscription ID is set via AZURE_SUBSCRIPTION_ID environment variable
+  subscription_id: ""
+  resource_group: ""
+  collectors:
+    - compute
+    - network
+    - storage
+    - identity
+    - keyvault
+  # Timeout for Azure SDK API calls (seconds)
+  api_timeout: 30
+  enable_secret_scanning: true
+
+rules:
+  rules_dir: "config/rules"
+  min_severity: "LOW"
+
+graph:
+  # Maximum number of hops in an attack path (limits BFS depth)
+  max_path_length: 8
+  weights:
+    path_length: 0.3
+    misconfiguration_severity: 0.5
+    target_value: 0.2
+
+server:
+  host: "0.0.0.0"
+  # HTTPS port (TLS required in production)
+  port: 8443
+
+database:
+  url: "sqlite:///data/azsploitmapper.db"
+
+# Authentication is configured via environment variables:
+# - AZSPLOITMAPPER_API_KEY: API key for dashboard access
+# - ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ENTRA_TENANT_ID: OAuth2
+# See .env.example for full list.

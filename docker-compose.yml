@@ -1,0 +1,57 @@
+# =============================================================================
+# AZSploitMapper Docker Compose
+# =============================================================================
+# Secure deployment with TLS, non-root user, and Service Principal auth.
+#
+# Before starting:
+#   1. Copy .env.example to .env and fill in your Azure Service Principal creds
+#   2. Generate TLS certificates (or use existing ones):
+#      mkdir -p certs
+#      openssl req -x509 -newkey rsa:4096 -keyout certs/key.pem \
+#        -out certs/cert.pem -days 365 -nodes -subj '/CN=localhost'
+#   3. Generate an API key:
+#      docker compose run --rm azsploitmapper python -m azsploitmapper generate-api-key --name admin
+#   4. Start the service:
+#      docker compose up -d
+# =============================================================================
+
+services:
+  azsploitmapper:
+    build: .
+    ports:
+      - "8443:8443"
+    volumes:
+      # Application config (read-only)
+      - ./config:/app/config:ro
+      # TLS certificates (read-only)
+      - ./certs:/app/certs:ro
+      # Persistent data (scan results DB, API keys)
+      - ./data:/app/data
+      # Logs
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      # TLS certificate paths inside the container
+      - TLS_CERT_PATH=/app/certs/cert.pem
+      - TLS_KEY_PATH=/app/certs/key.pem
+    # Security: run as non-root user (matches UID in Dockerfile)
+    user: "1000:1000"
+    # Security: read-only root filesystem where possible
+    read_only: true
+    # Allow writing to data, logs, certs, and tmp directories
+    tmpfs:
+      - /tmp:size=64M
+    # Security: drop all capabilities, add only what's needed
+    cap_drop:
+      - ALL
+    # Security: no new privileges can be gained
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    # Resource limits to prevent DoS
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
